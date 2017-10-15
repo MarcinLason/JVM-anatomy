@@ -1,0 +1,15 @@
+.idea/
+.gradle/
+/build/
+/gradle
+
+/gradlew.bat
+/gradlew
+
+*.iml
+*.ipr
+*.iws
+
+node_modules/
+package-lock.json
+.sass-cache/

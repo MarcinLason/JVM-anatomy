@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<project name="zadanie1" default="default">
+    <description>
+    </description>
+	
+	<property name="src" location="src/"/>
+	<property name="lib" location="lib/"/>
+	<property name="build" location="classes/"/>
+
+	<path id="classpath">
+	  <fileset dir="${lib}"> 
+	    <include name="*.jar"/>
+	  </fileset>
+	</path> 
+
+    <target name="default" depends="compile" description="--> description">
+       
+    </target>
+
+    <target name="compile">
+    	<javac	srcdir="${src}"
+    			destdir="${build}">
+    		<classpath refid="classpath"/>
+    	</javac>
+    </target>
+
+</project>
+
