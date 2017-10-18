@@ -1,15 +1,7 @@
 .idea/
-.gradle/
-/build/
-/gradle
-
-/gradlew.bat
-/gradlew
+*.class
+*.txt
 
 *.iml
 *.ipr
 *.iws
-
-node_modules/
-package-lock.json
-.sass-cache/
