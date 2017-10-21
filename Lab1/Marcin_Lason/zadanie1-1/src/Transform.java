@@ -1,9 +1,7 @@
 import org.apache.bcel.Repository;
 import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.classfile.Method;
-import org.apache.bcel.generic.ClassGen;
-import org.apache.bcel.generic.ConstantPoolGen;
-import org.apache.bcel.generic.MethodGen;
+import org.apache.bcel.generic.*;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,16 +27,27 @@ public class Transform {
         List<Method> methods = Arrays.asList(testClass.getMethods());
 
 
-
         ClassGen testClassModification = new ClassGen(testClass);
-        ConstantPoolGen poolGen = testClassModification.getConstantPool();
+        ConstantPoolGen constantPoolGen = testClassModification.getConstantPool();
+        InstructionFactory instructionFactory = new InstructionFactory(testClassModification);
 
-        for (Method m : methods) {
-            MethodGen method = new MethodGen(m, testClassModification.getClassName(), poolGen);
+        for (Method method : methods) {
+            MethodGen methodModification = new MethodGen(method, testClassModification.getClassName(), constantPoolGen);
+            System.out.println("\nMethod's name: " + method.getName().toString());
+            System.out.println("Return type: " + method.getReturnType().toString());
 
+            InstructionList instructionList = methodModification.getInstructionList();
+            InstructionHandle[] instructionHandles = instructionList.getInstructionHandles();
+
+            for (InstructionHandle handle : instructionHandles) {
+                if (handle.getInstruction() instanceof InvokeInstruction) {
+                    if (!(handle.getInstruction() instanceof INVOKESPECIAL)) {
+                        System.out.println(handle.getInstruction().getName());
+                    }
+                }
+            }
 
         }
-
 
 
         String classFilePath = Repository.lookupClassFile(testClassModification.getClassName()).getPath();
