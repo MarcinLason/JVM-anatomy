@@ -44,6 +44,8 @@ public class Transform {
                     }
                 }
             }
+            modifiedMethod.setMaxStack();
+            modifiedClass.replaceMethod(method, modifiedMethod.getMethod());
         }
         return modifiedClass;
     }
@@ -51,11 +53,11 @@ public class Transform {
     private static InstructionList buildInstructionList(InstructionFactory factory, Type returnType) {
         InstructionList modifiedInstructionList = new InstructionList();
 
-        modifiedInstructionList.append(getSystemInstruction(factory));
+        modifiedInstructionList.append(getSystemOutInstruction(factory));
         modifiedInstructionList.append(factory.createConstant(RESULT));
         modifiedInstructionList.append(getPrintInstruction(factory));
         modifiedInstructionList.append(InstructionFactory.createDup(returnType.getSize()));
-        modifiedInstructionList.append(getSystemInstruction(factory));
+        modifiedInstructionList.append(getSystemOutInstruction(factory));
 
         if (returnType.equals(Type.LONG) || returnType.equals(Type.DOUBLE)) {
             modifiedInstructionList.append(InstructionFactory.DUP_X2);
@@ -106,7 +108,7 @@ public class Transform {
         return PREFIX + instruction.getMethodName(cp) + instruction.getSignature(cp);
     }
 
-    private static Instruction getSystemInstruction(InstructionFactory factory) {
+    private static Instruction getSystemOutInstruction(InstructionFactory factory) {
         return factory.createFieldAccess(
                 System.class.getCanonicalName(), "out", new ObjectType(PrintStream.class.getCanonicalName()),
                 Constants.GETSTATIC);

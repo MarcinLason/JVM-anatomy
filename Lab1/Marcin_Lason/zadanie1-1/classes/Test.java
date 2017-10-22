@@ -1,27 +1,66 @@
-import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Scanner;
 
 public class Test {
-    private int someInt;
+    private Test test;
 
-    private int getSomeInt () {
-        someInt = 30;
-        return someInt;
+    private void returnNothing() {
+        String a = "nothing";
     }
 
-    private void returnNothing () {
-        int number = 30;
-        String text = "text";
+    private Integer sum (int a, int b) {
+        return a + b;
     }
 
-    private double getSomeDouble() {
-        return someInt + 0.5;
+    double multiply(int a, int b){
+        return a*b;
     }
 
+    private Integer proxyInvoker (int a) {
+        returnNothing();
+        sum (a, 10);
+        multiply(a, a + 17);
+        return a + 1;
+    }
 
-    public static void main(String[] argv) throws IOException {
+    public static void main(String[] args){
         Test test = new Test();
-        System.out.println("Hello world");
-        System.out.println(test.getSomeInt());
-        System.out.println(test.getSomeDouble());
+        test.hi();
+        test.bigbig(16);
+        test.hello("lala");
+        int r = test.natural(5, 2);
+        test.arr();
+        test.multiply(r,20);
+        test.getScanner();
+    }
+
+    Integer natural(int a, int b){
+        test = new Test();
+        test.hi();
+        return a + b;
+    }
+
+    long bigbig(int a){
+        return a*a*a*1000;
+    }
+
+
+
+    Scanner getScanner(){
+        return new Scanner("nanananaananaa");
+    }
+
+    String hi(){
+        String s = "HI naturally!";
+        return s;
+    }
+    float[][] arr(){
+        return new float[3][4];
+    }
+
+
+    List<String> hello(String s){
+        return Arrays.asList(s);
     }
 }
