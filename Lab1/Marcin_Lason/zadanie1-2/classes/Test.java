@@ -8,6 +8,7 @@ public class Test {
     private String someString = "";
     private double someDouble = 34.0;
     private double secondDouble = 36.1;
+    private boolean someBoolean = true;
     private List<String> listOfString = Arrays.asList("String1", "String2");
 
     public String concat (List<String> listOfString) {
@@ -27,6 +28,10 @@ public class Test {
         return someDouble * secondDouble;
     }
 
+    public boolean getOpposite() {
+        return !someBoolean;
+    }
+
     public String getOneString() {
         return someString + concat(listOfString);
     }
@@ -36,5 +41,6 @@ public class Test {
         test.sumInts();
         test.multiplyDoubles();
         test.getOneString();
+        test.getOpposite();
     }
 }
