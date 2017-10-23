@@ -8,10 +8,10 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Transform {
-    private static final String THRESHOLD_MESSAGE = "    !the value is greater than 30!";
-    private static final String GETFIELD_INFO_MESSAGE = "Before getfield:%n    %s%n    %s%n    %s%n    %s%n";
-    private static final List<BasicType> NUMERIC_TYPES = Arrays.asList(Type.BYTE, Type.SHORT, Type.INT, Type.LONG, Type.FLOAT,
-            Type.DOUBLE);
+    private static final List<BasicType> NUMERIC_TYPES = Arrays.asList(Type.BYTE, Type.SHORT, Type.INT, Type.LONG,
+            Type.FLOAT, Type.DOUBLE);
+    private static final String GETFIELD_MESSAGE = "Before getfield:%n    %s%n    %s%n    %s%n    %s%n";
+    private static final String BIGGER_VALUE_MESSAGE = "    !the value is greater than 30!";
 
     public static void main(String[] args) throws IOException {
         String className = getClassName(args);
@@ -25,35 +25,39 @@ public class Transform {
         modifiedClass.dump(className);
     }
 
-
     private static JavaClass modifyClass(JavaClass originalClass) {
         ClassGen modifiedClass = new ClassGen(originalClass);
-        ConstantPoolGen constantPoolGen = modifiedClass.getConstantPool();
+        ConstantPoolGen constantPool = modifiedClass.getConstantPool();
 
         for (Method method : originalClass.getMethods()) {
-            MethodGen modifiedMethod = new MethodGen(method, modifiedClass.getClassName(), constantPoolGen);
-            modifiedMethod.setMaxStack(modifiedMethod.getMaxStack() + 6);
-            modifiedMethod.setMaxLocals(modifiedMethod.getMaxLocals() + 1);
-            int tmpLocalVariableIndex = modifiedMethod.getMaxLocals() - 1;
+            MethodGen modifiedMethod = new MethodGen(method, modifiedClass.getClassName(), constantPool);
             InstructionList modifiedMethodInstructions = modifiedMethod.getInstructionList();
             InstructionHandle inspectedInstructionHandle = modifiedMethodInstructions.getStart();
+
+            modifiedMethod.setMaxStack(modifiedMethod.getMaxStack() + 6);
+            modifiedMethod.setMaxLocals(modifiedMethod.getMaxLocals() + 1);
+            int localVariableIndex = modifiedMethod.getMaxLocals() - 1;
 
             do {
                 InstructionHandle nextHandle = inspectedInstructionHandle.getNext();
                 Instruction instruction = inspectedInstructionHandle.getInstruction();
-                if (isPrimitiveFieldRead(instruction, constantPoolGen)) {
+
+                if (isPrimitive(instruction, constantPool)) {
                     GETFIELD getFieldInstruction = (GETFIELD) instruction;
-                    Type accessedFieldType = getFieldInstruction.getFieldType(constantPoolGen);
-                    InstructionList instructionsToPrepend = printAccessedFieldInfo(tmpLocalVariableIndex, getFieldInstruction, accessedFieldType, constantPoolGen);
+                    Type accessedFieldType = getFieldInstruction.getFieldType(constantPool);
+
+                    InstructionList instructionsToPrepend = printFieldInfo(localVariableIndex,
+                            getFieldInstruction, accessedFieldType, constantPool);
                     modifiedMethodInstructions.insert(instruction, instructionsToPrepend);
+
                     if (NUMERIC_TYPES.contains(accessedFieldType)) {
-                        InstructionList thresholdCheck = checkIfResultIsLargerThanThreshold(inspectedInstructionHandle, accessedFieldType, constantPoolGen);
-                        modifiedMethodInstructions.append(instruction, thresholdCheck);
+                        InstructionList valueCheckInstructions = checkResultsValue(inspectedInstructionHandle,
+                                accessedFieldType, constantPool);
+                        modifiedMethodInstructions.append(instruction, valueCheckInstructions);
                     }
                 }
                 inspectedInstructionHandle = nextHandle;
             } while (inspectedInstructionHandle != null);
-
 
             modifiedMethodInstructions.setPositions();
             modifiedClass.replaceMethod(method, modifiedMethod.getMethod());
@@ -61,81 +65,53 @@ public class Transform {
         return modifiedClass.getJavaClass();
     }
 
-    private static InstructionList printAccessedFieldInfo(int tmpLocalVariableIndex, GETFIELD getFieldInstruction, Type accessedFieldType, ConstantPoolGen constantPoolGen) {
-        InstructionList instructionsToPrepend = new InstructionList();
-        String targetType = getFieldInstruction.getLoadClassType(constantPoolGen).getClassName();
+    private static InstructionList printFieldInfo(int localVariableIndex, GETFIELD getFieldInstruction,
+                                                  Type accessedFieldType, ConstantPoolGen constantPool) {
+        InstructionList instructions = new InstructionList();
+        String targetType = getFieldInstruction.getLoadClassType(constantPool).getClassName();
         String fieldType = accessedFieldType.toString();
-        String fieldName = getFieldInstruction.getFieldName(constantPoolGen);
-        instructionsToPrepend.append(new DUP());
-        instructionsToPrepend.append(new ASTORE(tmpLocalVariableIndex));
-        instructionsToPrepend.append(new GETSTATIC(getSystemOutIndex(constantPoolGen)));
-        instructionsToPrepend.append(new PUSH(constantPoolGen, GETFIELD_INFO_MESSAGE));
-        createNewArray(instructionsToPrepend, constantPoolGen, getObjectClassIndex(constantPoolGen), 4);
-        insertStringIntoArray(instructionsToPrepend, constantPoolGen, 0, targetType);
-        insertStringIntoArray(instructionsToPrepend, constantPoolGen, 1, fieldType);
-        insertStringIntoArray(instructionsToPrepend, constantPoolGen, 2, fieldName);
-        insertFieldValueObjectIntoArray(instructionsToPrepend, constantPoolGen, 3, tmpLocalVariableIndex, getFieldInstruction);
-        instructionsToPrepend.append(new INVOKEVIRTUAL(getPrintStreamPrintfIndex(constantPoolGen)));
-        instructionsToPrepend.append(new POP());
-        return instructionsToPrepend;
+        String fieldName = getFieldInstruction.getFieldName(constantPool);
+
+        instructions.append(new DUP());
+        instructions.append(new ASTORE(localVariableIndex));
+        instructions.append(new GETSTATIC(getSystemOutIndex(constantPool)));
+        instructions.append(new PUSH(constantPool, GETFIELD_MESSAGE));
+        instructions.append(new PUSH(constantPool, 4));
+        instructions.append(new ANEWARRAY(getObjectClassIndex(constantPool)));
+
+        insertStringIntoArray(instructions, constantPool, 0, targetType);
+        insertStringIntoArray(instructions, constantPool, 1, fieldType);
+        insertStringIntoArray(instructions, constantPool, 2, fieldName);
+        insertFieldValueIntoArray(instructions, constantPool, 3, localVariableIndex, getFieldInstruction);
+
+        instructions.append(new INVOKEVIRTUAL(getPrintStreamPrintfIndex(constantPool)));
+        instructions.append(new POP());
+        return instructions;
     }
 
-    private static InstructionList checkIfResultIsLargerThanThreshold(InstructionHandle instructionHandle, Type accessedFieldType, ConstantPoolGen constantPoolGen) {
-        InstructionList instructionsToAppend = new InstructionList();
-        instructionsToAppend.append(InstructionFactory.createDup(accessedFieldType.getSize()));
+    private static InstructionList checkResultsValue(InstructionHandle instructionHandle, Type accessedFieldType,
+                                                     ConstantPoolGen constantPool) {
+        InstructionList instructions = new InstructionList();
+        instructions.append(InstructionFactory.createDup(accessedFieldType.getSize()));
+
         if (accessedFieldType.equals(Type.FLOAT)) {
-            instructionsToAppend.append(new PUSH(constantPoolGen, 30.0f));
-            instructionsToAppend.append(new FCMPL());
-            instructionsToAppend.append(new ICONST(1));
-            instructionsToAppend.append(new IF_ICMPLT(instructionHandle.getNext()));
+            floatAppend(instructions, constantPool);
+            numericAppend(instructions, instructionHandle);
         } else if (accessedFieldType.equals(Type.DOUBLE)) {
-            instructionsToAppend.append(new PUSH(constantPoolGen, 30.0));
-            instructionsToAppend.append(new DCMPL());
-            instructionsToAppend.append(new ICONST(1));
-            instructionsToAppend.append(new IF_ICMPLT(instructionHandle.getNext()));
+            doubleAppend(instructions, constantPool);
+            numericAppend(instructions, instructionHandle);
         } else if (accessedFieldType.equals(Type.LONG)) {
-            instructionsToAppend.append(new PUSH(constantPoolGen, 30L));
-            instructionsToAppend.append(new LCMP());
-            instructionsToAppend.append(new ICONST(1));
-            instructionsToAppend.append(new IF_ICMPLT(instructionHandle.getNext()));
+            longAppend(instructions, constantPool);
+            numericAppend(instructions, instructionHandle);
         } else {
-            instructionsToAppend.append(new PUSH(constantPoolGen, 30));
-            instructionsToAppend.append(new IF_ICMPLE(instructionHandle.getNext()));
+            instructions.append(new PUSH(constantPool, 30));
+            instructions.append(new IF_ICMPLE(instructionHandle.getNext()));
         }
-        instructionsToAppend.append(new GETSTATIC(getSystemOutIndex(constantPoolGen)));
-        instructionsToAppend.append(new PUSH(constantPoolGen, THRESHOLD_MESSAGE));
-        instructionsToAppend.append(new INVOKEVIRTUAL(getPrintStreamPrintlnIndex(constantPoolGen)));
-        return instructionsToAppend;
-    }
 
-    private static void createNewArray(InstructionList instructionList, ConstantPoolGen constantPoolGen, int elementClassConstIndex, int size) {
-        instructionList.append(new PUSH(constantPoolGen, size));
-        instructionList.append(new ANEWARRAY(elementClassConstIndex));
-    }
-
-    private static void insertFieldValueObjectIntoArray(InstructionList instructionList, ConstantPoolGen constantPoolGen, int index, int targetObjectLocalIndex, GETFIELD getFieldInstruction) {
-        instructionList.append(new DUP());
-        instructionList.append(new PUSH(constantPoolGen, index));
-        instructionList.append(new ALOAD(targetObjectLocalIndex));
-        instructionList.append(getFieldInstruction);
-        stringValueOfPrimitiveType(instructionList, constantPoolGen, getFieldInstruction);
-        instructionList.append(new AASTORE());
-    }
-
-    private static void insertStringIntoArray(InstructionList instructionList, ConstantPoolGen constantPoolGen, int index, String value) {
-        instructionList.append(new DUP());
-        instructionList.append(new PUSH(constantPoolGen, index));
-        instructionList.append(new PUSH(constantPoolGen, value));
-        instructionList.append(new AASTORE());
-    }
-
-    private static void stringValueOfPrimitiveType(InstructionList instructionList, ConstantPoolGen constantPoolGen,
-                                                   GETFIELD getFieldInstruction) {
-        Type printedType = getFieldInstruction.getFieldType(constantPoolGen);
-        if (printedType.equals(Type.BYTE) || printedType.equals(Type.SHORT)) {
-            printedType = Type.INT;
-        }
-        instructionList.append(new INVOKESTATIC(getStringValueOfIndex(printedType, constantPoolGen)));
+        instructions.append(new GETSTATIC(getSystemOutIndex(constantPool)));
+        instructions.append(new PUSH(constantPool, BIGGER_VALUE_MESSAGE));
+        instructions.append(new INVOKEVIRTUAL(getPrintStreamPrintlnIndex(constantPool)));
+        return instructions;
     }
 
     private static String getClassName(String[] args) {
@@ -146,12 +122,39 @@ public class Transform {
         return className;
     }
 
-    private static boolean isPrimitiveFieldRead(Instruction instruction, ConstantPoolGen constantPool) {
+    private static void insertStringIntoArray(InstructionList instructions, ConstantPoolGen constantPool, int index,
+                                              String value) {
+        instructions.append(new DUP());
+        instructions.append(new PUSH(constantPool, index));
+        instructions.append(new PUSH(constantPool, value));
+        instructions.append(new AASTORE());
+    }
+
+    private static void insertFieldValueIntoArray(InstructionList instructions, ConstantPoolGen constantPool,
+                                                  int index, int targetObjectLocalIndex, GETFIELD getFieldInstruction) {
+        instructions.append(new DUP());
+        instructions.append(new PUSH(constantPool, index));
+        instructions.append(new ALOAD(targetObjectLocalIndex));
+        instructions.append(getFieldInstruction);
+        getStringValueOfPrimitiveType(instructions, constantPool, getFieldInstruction);
+        instructions.append(new AASTORE());
+    }
+
+    private static boolean isPrimitive(Instruction instruction, ConstantPoolGen constantPool) {
         if (instruction instanceof GETFIELD &&
                 ((GETFIELD) instruction).getFieldType(constantPool) instanceof BasicType) {
             return true;
         }
         return false;
+    }
+
+    private static void getStringValueOfPrimitiveType(InstructionList instructions, ConstantPoolGen constantPool,
+                                                      GETFIELD getFieldInstruction) {
+        Type printedType = getFieldInstruction.getFieldType(constantPool);
+        if (printedType.equals(Type.BYTE) || printedType.equals(Type.SHORT)) {
+            printedType = Type.INT;
+        }
+        instructions.append(new INVOKESTATIC(getStringValueOfIndex(printedType, constantPool)));
     }
 
     private static int getSystemOutIndex(ConstantPoolGen constantPool) {
@@ -169,12 +172,32 @@ public class Transform {
                 "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;");
     }
 
-    private static int getStringValueOfIndex(Type argType, ConstantPoolGen constantPool) {
+    private static int getStringValueOfIndex(Type type, ConstantPoolGen constantPool) {
         return constantPool.addMethodref("java/lang/String", "valueOf",
-                String.format("(%s)Ljava/lang/String;", argType.getSignature()));
+                String.format("(%s)Ljava/lang/String;", type.getSignature()));
     }
 
     private static int getObjectClassIndex(ConstantPoolGen constantPool) {
         return constantPool.addClass(ObjectType.OBJECT);
+    }
+
+    private static void floatAppend(InstructionList instructions, ConstantPoolGen constantPool) {
+        instructions.append(new PUSH(constantPool, 30.0f));
+        instructions.append(new FCMPL());
+    }
+
+    private static void doubleAppend(InstructionList instructions, ConstantPoolGen constantPool) {
+        instructions.append(new PUSH(constantPool, 30.0));
+        instructions.append(new DCMPL());
+    }
+
+    private static void longAppend(InstructionList instructions, ConstantPoolGen constantPool) {
+        instructions.append(new PUSH(constantPool, 30L));
+        instructions.append(new LCMP());
+    }
+
+    private static void numericAppend(InstructionList instructions, InstructionHandle instructionHandle) {
+        instructions.append(new ICONST(1));
+        instructions.append(new IF_ICMPLT(instructionHandle.getNext()));
     }
 }
