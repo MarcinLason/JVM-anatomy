@@ -12,4 +12,4 @@
  echo $CLASSPATH
  javac Test.java
  java Transform Test.class &> Test_transform_zad_1_2_out.txt
- java Test &> ../../Test_zad_1_2_out.txt
+ java -XX:-UseSplitVerifier Test &> ../../Test_zad_1_2_out.txt
