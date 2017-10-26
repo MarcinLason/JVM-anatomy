@@ -3,7 +3,6 @@ import java.util.List;
 import java.util.Scanner;
 
 public class Test {
-    private Test test;
 
     private void returnNothing() {
         String a = "nothing";
@@ -13,8 +12,19 @@ public class Test {
         return a + b;
     }
 
-    double multiply(int a, int b){
+    private double multiply(int a, int b){
         return a*b;
+    }
+
+    private String concatStrings (String a, String b) {
+        return a + b;
+    }
+    private List<String> getList(String string1, String string2, String string3, String string4) {
+        return Arrays.asList(concatStrings(string1, string2), concatStrings(string3, string4));
+    }
+
+    Scanner getScanner(){
+        return new Scanner("source");
     }
 
     private Integer proxyInvoker (int a) {
@@ -26,41 +36,8 @@ public class Test {
 
     public static void main(String[] args){
         Test test = new Test();
-        test.hi();
-        test.bigbig(16);
-        test.hello("lala");
-        int r = test.natural(5, 2);
-        test.arr();
-        test.multiply(r,20);
+        test.proxyInvoker(30);
+        test.getList("a", "b", "c", "d");
         test.getScanner();
-    }
-
-    Integer natural(int a, int b){
-        test = new Test();
-        test.hi();
-        return a + b;
-    }
-
-    long bigbig(int a){
-        return a*a*a*1000;
-    }
-
-
-
-    Scanner getScanner(){
-        return new Scanner("nanananaananaa");
-    }
-
-    String hi(){
-        String s = "HI naturally!";
-        return s;
-    }
-    float[][] arr(){
-        return new float[3][4];
-    }
-
-
-    List<String> hello(String s){
-        return Arrays.asList(s);
     }
 }
