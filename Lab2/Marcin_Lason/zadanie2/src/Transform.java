@@ -2,14 +2,35 @@ import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.Field;
 import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.AASTORE;
+import org.apache.bcel.generic.ALOAD;
+import org.apache.bcel.generic.ANEWARRAY;
+import org.apache.bcel.generic.ASTORE;
 import org.apache.bcel.generic.*;
+import org.apache.bcel.generic.CHECKCAST;
+import org.apache.bcel.generic.DUP;
+import org.apache.bcel.generic.DUP2;
+import org.apache.bcel.generic.GETSTATIC;
+import org.apache.bcel.generic.GOTO;
+import org.apache.bcel.generic.IADD;
+import org.apache.bcel.generic.IFNONNULL;
+import org.apache.bcel.generic.IF_ICMPEQ;
+import org.apache.bcel.generic.IF_ICMPLT;
+import org.apache.bcel.generic.INVOKEINTERFACE;
+import org.apache.bcel.generic.INVOKESPECIAL;
+import org.apache.bcel.generic.INVOKESTATIC;
+import org.apache.bcel.generic.INVOKEVIRTUAL;
+import org.apache.bcel.generic.NEW;
+import org.apache.bcel.generic.POP;
+import org.apache.bcel.generic.PUSH;
+import org.apache.bcel.generic.PUTSTATIC;
+import org.apache.bcel.generic.RETURN;
+import org.apache.bcel.generic.SWAP;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.apache.bcel.Constants.ACC_PUBLIC;
-import static org.apache.bcel.Constants.ACC_STATIC;
-import static org.apache.bcel.Constants.ACC_SYNTHETIC;
+import static org.apache.bcel.Constants.*;
 
 
 public class Transform {
@@ -24,46 +45,50 @@ public class Transform {
     private static final String STATIC_CONSTRUCTOR_NAME = "<clinit>";
     private static final String PRINT_STATS_METHOD_NAME = "$printStats";
     private static final String BUMP_COUNTER = "$bumpCounter";
-    private static final String $_INSTRUCTION_COUNTER_CLASS_NAME = "$InstructionCounter";
-    private ConstantPoolGen constPool;
-    private ConstantPoolGen counterClassConstPool;
+    private static final String INSTRUCTION_COUNTER_CLASS_NAME = "$InstructionCounter";
 
     public static void main(String[] args) throws IOException {
-        String clazzFile = args[0];
-        ClassParser parser = new ClassParser(clazzFile);
-        JavaClass rewrittenClass = parser.parse();
-        ClassGen counterClass = new ClassGen($_INSTRUCTION_COUNTER_CLASS_NAME, "java/lang/Object", $_INSTRUCTION_COUNTER_CLASS_NAME + ".java", ACC_PUBLIC, new String[0]);
-        Transform classTransformer = new Transform();
-        JavaClass newClass = classTransformer.injectExecutionStats(rewrittenClass, counterClass);
-        newClass.dump(clazzFile);
-        counterClass.getJavaClass().dump($_INSTRUCTION_COUNTER_CLASS_NAME + ".class");
+        String className = getClassName(args);
+        ClassParser parser = new ClassParser(className);
+        if (parser == null) {
+            return;
+        }
+
+        JavaClass parsedClass = parser.parse();
+        ClassGen helperClass = new ClassGen(INSTRUCTION_COUNTER_CLASS_NAME,
+                "java/lang/Object", INSTRUCTION_COUNTER_CLASS_NAME + ".java", ACC_PUBLIC, new String[0]);
+        JavaClass modifiedClass = modifyClass(parsedClass, helperClass);
+
+        modifiedClass.dump(className);
+        helperClass.getJavaClass().dump(INSTRUCTION_COUNTER_CLASS_NAME + ".class");
     }
 
-    private JavaClass injectExecutionStats(JavaClass oldClass, ClassGen counterClass) {
-        ClassGen newClass = new ClassGen(oldClass);
-        constPool = newClass.getConstantPool();
-        counterClassConstPool = counterClass.getConstantPool();
-        for (Method method : oldClass.getMethods()) {
+    private static JavaClass modifyClass(JavaClass originalClass, ClassGen helperClass) {
+        ClassGen modifiedClass = new ClassGen(originalClass);
+        ConstantPoolGen constPool = modifiedClass.getConstantPool();
+        ConstantPoolGen counterClassConstPool = helperClass.getConstantPool();
+
+        for (Method method : originalClass.getMethods()) {
             if (isStaticOrNormalConstructor(method)) {
                 continue;
             }
-            MethodGen newMethod = new MethodGen(method, newClass.getClassName(), constPool);
-            injectExecutionStatsInformation(newClass.getClassName(), counterClass.getClassName(), newMethod);
+            MethodGen newMethod = new MethodGen(method, modifiedClass.getClassName(), constPool);
+            addStatistics(modifiedClass.getClassName(), helperClass.getClassName(), newMethod, constPool);
             newMethod.setMaxStack();
             newMethod.setMaxLocals();
-            newClass.replaceMethod(method, newMethod.getMethod());
+            modifiedClass.replaceMethod(method, newMethod.getMethod());
         }
-        counterClass.addField(createStatsMap());
-        counterClass.addInterface("java.lang.Runnable");
-        counterClass.addMethod(createRunMethod(counterClass));
-        counterClass.addMethod(defaultConstructorForCounter(counterClass));
-        createStatsMapInitializerAndHookRegistrar(counterClass);
-        counterClass.addMethod(createInstructionCounterMethod(counterClass.getClassName()));
-        counterClass.addMethod(createStatisticsPrintingMethod(counterClass));
-        return newClass.getJavaClass();
+        helperClass.addField(createStatsMap(counterClassConstPool));
+        helperClass.addInterface("java.lang.Runnable");
+        helperClass.addMethod(createRunMethod(helperClass, counterClassConstPool));
+        helperClass.addMethod(defaultConstructorForCounter(helperClass, counterClassConstPool));
+        createStatsMapInitializerAndHookRegistrar(helperClass, counterClassConstPool);
+        helperClass.addMethod(createInstructionCounterMethod(helperClass.getClassName(), counterClassConstPool));
+        helperClass.addMethod(createStatisticsPrintingMethod(helperClass, counterClassConstPool));
+        return modifiedClass.getJavaClass();
     }
 
-    private Method defaultConstructorForCounter(ClassGen counterClass) {
+    private static Method defaultConstructorForCounter(ClassGen counterClass, ConstantPoolGen counterClassConstPool) {
         InstructionList instructionList = new InstructionList();
         instructionList.append(new ALOAD(0));
         instructionList.append(new INVOKESPECIAL(counterClassConstPool.addMethodref("java/lang/Object", CONSTRUCTOR_NAME, "()V")));
@@ -74,7 +99,7 @@ public class Transform {
         return methodGen.getMethod();
     }
 
-    private Method createInstructionCounterMethod(String counterClassName) {
+    private static Method createInstructionCounterMethod(String counterClassName, ConstantPoolGen counterClassConstPool) {
         InstructionList instructions = new InstructionList();
         instructions.append(new ALOAD(0));
         instructions.append(new GETSTATIC(counterClassConstPool.addFieldref(counterClassName, EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
@@ -100,7 +125,7 @@ public class Transform {
         return runMethod.getMethod();
     }
 
-    private void createStatsMapInitializerAndHookRegistrar(ClassGen counterClass) {
+    private static void createStatsMapInitializerAndHookRegistrar(ClassGen counterClass, ConstantPoolGen counterClassConstPool) {
         String className = counterClass.getClassName();
         InstructionList instructions = new InstructionList();
         instructions.append(new NEW(counterClassConstPool.addClass("java.util.TreeMap")));
@@ -121,21 +146,21 @@ public class Transform {
         counterClass.addMethod(methodGen.getMethod());
     }
 
-    private void injectExecutionStatsInformation(String className, String counterClassName, MethodGen method) {
+    private static void addStatistics(String className, String counterClassName, MethodGen method, ConstantPoolGen constPool) {
         InstructionList methodInstructions = method.getInstructionList();
         InstructionHandle inspectedInstructionHandle = methodInstructions.getStart();
         do {
             InstructionHandle nextHandle = inspectedInstructionHandle.getNext();
             Instruction instruction = inspectedInstructionHandle.getInstruction();
-            if (isNotCallToExternalMethodOrOneStartingWithM(className, instruction)) {
-                injectCounterBeforeInstruction(counterClassName, methodInstructions, inspectedInstructionHandle, method.getExceptionHandlers());
+            if (isNotCallToExternalMethodOrOneStartingWithM(className, instruction, constPool)) {
+                injectCounterBeforeInstruction(counterClassName, methodInstructions, inspectedInstructionHandle, method.getExceptionHandlers(), constPool);
             }
             inspectedInstructionHandle = nextHandle;
         } while (inspectedInstructionHandle != null);
         methodInstructions.setPositions();
     }
 
-    private void injectCounterBeforeInstruction(String counterClassName, InstructionList methodInstructions, InstructionHandle inspectedInstructionHandle, CodeExceptionGen[] exceptionHandlers) {
+    private static void injectCounterBeforeInstruction(String counterClassName, InstructionList methodInstructions, InstructionHandle inspectedInstructionHandle, CodeExceptionGen[] exceptionHandlers, ConstantPoolGen constPool) {
         InstructionList bumpingInstructions = new InstructionList();
         Instruction instruction = inspectedInstructionHandle.getInstruction();
         bumpingInstructions.append(new PUSH(constPool, instruction.getName()));
@@ -152,52 +177,15 @@ public class Transform {
         }
     }
 
-    private boolean isNotCallToExternalMethodOrOneStartingWithM(String className, Instruction instruction) {
-        if (!(instruction instanceof InvokeInstruction)) {
-            return true;
-        }
-        InvokeInstruction invokeInstruction = (InvokeInstruction) instruction;
-        ObjectType calledMethodClassType = invokeInstruction.getLoadClassType(constPool);
-        if (!className.equals(calledMethodClassType.getClassName())) {
-            return false;
-        }
-        String methodName = invokeInstruction.getMethodName(constPool);
-        if (methodName.startsWith("m") || methodName.startsWith("M")) {
-            return false;
-        }
-        return true;
-    }
-
-    private boolean isStaticOrNormalConstructor(Method method) {
-        return CONSTRUCTOR_NAME.equals(method.getName()) || STATIC_CONSTRUCTOR_NAME.equals(method.getName());
-    }
-
-    private Method createRunMethod(ClassGen counterClass) {
+    private static Method createStatisticsPrintingMethod(ClassGen newClass, ConstantPoolGen counterClassConstPool) {
         InstructionList instructions = new InstructionList();
-        instructions.append(new INVOKESTATIC(counterClassConstPool.addMethodref(counterClass.getClassName(), PRINT_STATS_METHOD_NAME, "()V")));
-        instructions.append(new RETURN());
-        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_SYNTHETIC, Type.VOID, new Type[0], new String[0], "run", counterClass.getClassName(), instructions, counterClassConstPool);
-        runMethod.setMaxStack();
-        return runMethod.getMethod();
-    }
-
-    private Field createStatsMap() {
-        return new FieldGen(ACC_PUBLIC | ACC_STATIC, Type.getType(Map.class), EXECUTION_STATS_FIELD_NAME, counterClassConstPool).getField();
-    }
-
-    private Method createStatisticsPrintingMethod(ClassGen newClass) {
-        InstructionList instructions = new InstructionList();
-        // Map<String, Integer> map = new HashMap<>();
         instructions.append(new GETSTATIC(counterClassConstPool.addFieldref(newClass.getClassName(), EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_MAP_INDEX));
-        // Set<String> set = new HashSet<>();
-        // Iterator iter = set.iterator();
         instructions.append(new INVOKEINTERFACE(counterClassConstPool.addInterfaceMethodref("java/util/Map", "keySet", "()Ljava/util/Set;"), 1));
         instructions.append(new INVOKEINTERFACE(counterClassConstPool.addInterfaceMethodref("java/util/Set", "iterator", "()Ljava/util/Iterator;"), 1));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_ITER_INDEX));
-        //while(iter.hasNext()) {
         InstructionHandle loopEntry = instructions.append(new INVOKEINTERFACE(counterClassConstPool.addInterfaceMethodref("java/util/Iterator", "hasNext", "()Z"), 1));
         instructions.append(new ICONST(0));
         BranchHandle loopExitJump = instructions.append(new IF_ICMPEQ(null));
@@ -210,9 +198,6 @@ public class Transform {
         instructions.append(new INVOKEINTERFACE(counterClassConstPool.addInterfaceMethodref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_VALUE_INDEX));
-        // if(count >= 5)
-        //	sout "..."
-        //
         instructions.append(new CHECKCAST(counterClassConstPool.addClass("java.lang.Integer")));
         instructions.append(new INVOKEVIRTUAL(counterClassConstPool.addMethodref("java/lang/Integer", "intValue", "()I")));
         instructions.append(new ICONST(COUNT_THRESHOLD));
@@ -232,12 +217,55 @@ public class Transform {
         instructions.append(new INVOKEVIRTUAL(counterClassConstPool.addMethodref("java/io/PrintStream", "printf", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;")));
         instructions.append(new POP());
         instructions.append(new GOTO(loopEntry));
-        //cleanup:
         InstructionHandle loopExit = instructions.append(new RETURN());
         loopExitJump.setTarget(loopExit);
         MethodGen methodGen = new MethodGen(ACC_STATIC | ACC_PUBLIC, Type.VOID, Type.NO_ARGS, new String[0], PRINT_STATS_METHOD_NAME, newClass.getClassName(), instructions, counterClassConstPool);
         methodGen.setMaxLocals();
         methodGen.setMaxStack();
         return methodGen.getMethod();
+    }
+
+    private static boolean isNotCallToExternalMethodOrOneStartingWithM(String className, Instruction instruction, ConstantPoolGen constPool) {
+        if (!(instruction instanceof InvokeInstruction)) {
+            return true;
+        }
+        InvokeInstruction invokeInstruction = (InvokeInstruction) instruction;
+        ObjectType calledMethodClassType = invokeInstruction.getLoadClassType(constPool);
+        if (!className.equals(calledMethodClassType.getClassName())) {
+            return false;
+        }
+        String methodName = invokeInstruction.getMethodName(constPool);
+        if (methodName.startsWith("m") || methodName.startsWith("M")) {
+            return false;
+        }
+        return true;
+    }
+
+    private static Method createRunMethod(ClassGen counterClass, ConstantPoolGen counterClassConstPool) {
+        InstructionList instructions = new InstructionList();
+        instructions.append(new INVOKESTATIC(counterClassConstPool.addMethodref(counterClass.getClassName(), PRINT_STATS_METHOD_NAME, "()V")));
+        instructions.append(new RETURN());
+        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_SYNTHETIC, Type.VOID, new Type[0], new String[0], "run", counterClass.getClassName(), instructions, counterClassConstPool);
+        runMethod.setMaxStack();
+        return runMethod.getMethod();
+    }
+
+    private static Field createStatsMap(ConstantPoolGen counterClassConstPool) {
+        return new FieldGen(ACC_PUBLIC | ACC_STATIC, Type.getType(Map.class), EXECUTION_STATS_FIELD_NAME, counterClassConstPool).getField();
+    }
+
+    private static boolean isStaticOrNormalConstructor(Method method) {
+        if (method.getName().equals(CONSTRUCTOR_NAME) || method.getName().equals(STATIC_CONSTRUCTOR_NAME)) {
+            return true;
+        }
+        return false;
+    }
+
+    private static String getClassName(String[] args) {
+        String className = "";
+        if (args.length > 0) {
+            className = args[0];
+        }
+        return className;
     }
 }
