@@ -91,13 +91,16 @@ public class Transform {
         return modifiedClass.getJavaClass();
     }
 
-    private static Method createConstructorForHelperClass(ClassGen helperClass, ConstantPoolGen helperClassConstantPool) {
+    private static Method createConstructorForHelperClass(ClassGen helperClass,
+                                                          ConstantPoolGen helperClassConstantPool) {
         InstructionList instructions = new InstructionList();
         instructions.append(new ALOAD(0));
-        instructions.append(new INVOKESPECIAL(helperClassConstantPool.addMethodref("java/lang/Object", CONSTRUCTOR_NAME, "()V")));
+        instructions.append(new INVOKESPECIAL(helperClassConstantPool
+                .addMethodref("java/lang/Object", CONSTRUCTOR_NAME, "()V")));
         instructions.append(new RETURN());
 
-        MethodGen newMethod = new MethodGen(ACC_PUBLIC, Type.VOID, new Type[0], new String[0], CONSTRUCTOR_NAME, helperClass.getClassName(), instructions, helperClassConstantPool);
+        MethodGen newMethod = new MethodGen(ACC_PUBLIC, Type.VOID, new Type[0], new String[0], CONSTRUCTOR_NAME,
+                helperClass.getClassName(), instructions, helperClassConstantPool);
         newMethod.setMaxStack();
         newMethod.setMaxLocals();
         return newMethod.getMethod();
@@ -106,29 +109,38 @@ public class Transform {
     private static Method createCounterMethod(String helperClassName, ConstantPoolGen helperClassConstantPool) {
         InstructionList instructions = new InstructionList();
         instructions.append(new ALOAD(0));
-        instructions.append(new GETSTATIC(helperClassConstantPool.addFieldref(helperClassName, EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
+        instructions.append(new GETSTATIC(helperClassConstantPool
+                .addFieldref(helperClassName, EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
         instructions.append(new SWAP());
         instructions.append(new DUP2());
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2));
         instructions.append(new DUP());
 
         BranchHandle ifNonNullJump = instructions.append(new IFNONNULL(null));
         instructions.append(new POP());
         instructions.append(new ICONST(0));
-        instructions.append(new INVOKESTATIC(helperClassConstantPool.addMethodref("java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;")));
+        instructions.append(new INVOKESTATIC(helperClassConstantPool
+                .addMethodref("java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;")));
 
-        InstructionHandle ifNonNullDest = instructions.append(new CHECKCAST(helperClassConstantPool.addClass("java.lang.Integer")));
-        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool.addMethodref("java/lang/Integer", "intValue", "()I")));
+        InstructionHandle ifNonNullDest = instructions
+                .append(new CHECKCAST(helperClassConstantPool.addClass("java.lang.Integer")));
+        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool
+                .addMethodref("java/lang/Integer", "intValue", "()I")));
 
         ifNonNullJump.setTarget(ifNonNullDest);
         instructions.append(new ICONST(1));
         instructions.append(new IADD());
-        instructions.append(new INVOKESTATIC(helperClassConstantPool.addMethodref("java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;")));
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Map", "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), 3));
+        instructions.append(new INVOKESTATIC(helperClassConstantPool
+                .addMethodref("java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;")));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Map", "put",
+                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), 3));
         instructions.append(new POP());
         instructions.append(new RETURN());
 
-        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC, Type.VOID, new Type[]{Type.STRING}, new String[]{"instrName"}, BUMP_COUNTER, helperClassName, instructions, helperClassConstantPool);
+        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC, Type.VOID, new Type[]{Type.STRING},
+                new String[]{"instrName"}, BUMP_COUNTER, helperClassName, instructions, helperClassConstantPool);
         runMethod.setMaxStack();
         return runMethod.getMethod();
     }
@@ -139,24 +151,32 @@ public class Transform {
 
         instructions.append(new NEW(helperClassConstantPool.addClass("java.util.TreeMap")));
         instructions.append(new DUP());
-        instructions.append(new INVOKESPECIAL(helperClassConstantPool.addMethodref("java/util/TreeMap", CONSTRUCTOR_NAME, "()V")));
-        instructions.append(new PUTSTATIC(helperClassConstantPool.addFieldref(className, EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
-        instructions.append(new INVOKESTATIC(helperClassConstantPool.addMethodref("java/lang/Runtime", "getRuntime", "()Ljava/lang/Runtime;")));
+        instructions.append(new INVOKESPECIAL(helperClassConstantPool
+                .addMethodref("java/util/TreeMap", CONSTRUCTOR_NAME, "()V")));
+        instructions.append(new PUTSTATIC(helperClassConstantPool
+                .addFieldref(className, EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
+        instructions.append(new INVOKESTATIC(helperClassConstantPool
+                .addMethodref("java/lang/Runtime", "getRuntime", "()Ljava/lang/Runtime;")));
         instructions.append(new NEW(helperClassConstantPool.addClass("java.lang.Thread")));
         instructions.append(new DUP());
         instructions.append(new NEW(helperClassConstantPool.addClass(className)));
         instructions.append(new DUP());
-        instructions.append(new INVOKESPECIAL(helperClassConstantPool.addMethodref(className, CONSTRUCTOR_NAME, "()V")));
-        instructions.append(new INVOKESPECIAL(helperClassConstantPool.addMethodref("java/lang/Thread", CONSTRUCTOR_NAME, "(Ljava/lang/Runnable;)V")));
-        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool.addMethodref("java/lang/Runtime", "addShutdownHook", "(Ljava/lang/Thread;)V")));
+        instructions.append(new INVOKESPECIAL(helperClassConstantPool
+                .addMethodref(className, CONSTRUCTOR_NAME, "()V")));
+        instructions.append(new INVOKESPECIAL(helperClassConstantPool
+                .addMethodref("java/lang/Thread", CONSTRUCTOR_NAME, "(Ljava/lang/Runnable;)V")));
+        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool
+                .addMethodref("java/lang/Runtime", "addShutdownHook", "(Ljava/lang/Thread;)V")));
         instructions.append(new RETURN());
 
-        MethodGen newMethod = new MethodGen(ACC_STATIC, Type.VOID, Type.NO_ARGS, new String[0], STATIC_CONSTRUCTOR_NAME, className, instructions, helperClassConstantPool);
+        MethodGen newMethod = new MethodGen(ACC_STATIC, Type.VOID, Type.NO_ARGS, new String[0], STATIC_CONSTRUCTOR_NAME,
+                className, instructions, helperClassConstantPool);
         newMethod.setMaxStack();
         helperClass.addMethod(newMethod.getMethod());
     }
 
-    private static void addStatistics(String className, String helperClassName, MethodGen method, ConstantPoolGen constantPool) {
+    private static void addStatistics(String className, String helperClassName, MethodGen method,
+                                      ConstantPoolGen constantPool) {
         InstructionList instructions = method.getInstructionList();
         InstructionHandle instructionHandle = instructions.getStart();
 
@@ -164,7 +184,8 @@ public class Transform {
             InstructionHandle nextHandle = instructionHandle.getNext();
             Instruction instruction = instructionHandle.getInstruction();
             if (isValidMethod(className, instruction, constantPool)) {
-                injectCounterBeforeInstruction(helperClassName, instructions, instructionHandle, method.getExceptionHandlers(), constantPool);
+                injectCounterBeforeInstruction(helperClassName, instructions, instructionHandle,
+                        method.getExceptionHandlers(), constantPool);
             }
             instructionHandle = nextHandle;
         } while (instructionHandle != null);
@@ -176,7 +197,8 @@ public class Transform {
         InstructionList bumpingInstructions = new InstructionList();
         Instruction instruction = inspectedInstructionHandle.getInstruction();
         bumpingInstructions.append(new PUSH(constantPool, instruction.getName()));
-        bumpingInstructions.append(new INVOKESTATIC(constantPool.addMethodref(helperClassName, BUMP_COUNTER, "(Ljava/lang/String;)V")));
+        bumpingInstructions.append(new INVOKESTATIC(constantPool
+                .addMethodref(helperClassName, BUMP_COUNTER, "(Ljava/lang/String;)V")));
         InstructionHandle newBranchTarget = methodInstructions.insert(inspectedInstructionHandle, bumpingInstructions);
         methodInstructions.redirectBranches(inspectedInstructionHandle, newBranchTarget);
         for (CodeExceptionGen exceptionHandler : exceptionHandlers) {
@@ -191,32 +213,40 @@ public class Transform {
 
     private static Method createStatisticsPrintingMethod(ClassGen newClass, ConstantPoolGen helperClassConstantPool) {
         InstructionList instructions = new InstructionList();
-        instructions.append(new GETSTATIC(helperClassConstantPool.addFieldref(newClass.getClassName(), EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
+        instructions.append(new GETSTATIC(helperClassConstantPool
+                .addFieldref(newClass.getClassName(), EXECUTION_STATS_FIELD_NAME, "Ljava/util/Map;")));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_MAP_INDEX));
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Map", "keySet", "()Ljava/util/Set;"), 1));
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Set", "iterator", "()Ljava/util/Iterator;"), 1));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Map", "keySet", "()Ljava/util/Set;"), 1));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Set", "iterator", "()Ljava/util/Iterator;"), 1));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_ITER_INDEX));
 
-        InstructionHandle loopEntry = instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Iterator", "hasNext", "()Z"), 1));
+        InstructionHandle loopEntry = instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Iterator", "hasNext", "()Z"), 1));
         instructions.append(new ICONST(0));
 
         BranchHandle loopExitJump = instructions.append(new IF_ICMPEQ(null));
         instructions.append(new ALOAD(LOCAL_ITER_INDEX));
         instructions.append(new ALOAD(LOCAL_MAP_INDEX));
         instructions.append(new ALOAD(LOCAL_ITER_INDEX));
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Iterator", "next", "()Ljava/lang/Object;"), 1));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Iterator", "next", "()Ljava/lang/Object;"), 1));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_KEY_INDEX));
-        instructions.append(new INVOKEINTERFACE(helperClassConstantPool.addInterfaceMethodref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2));
+        instructions.append(new INVOKEINTERFACE(helperClassConstantPool
+                .addInterfaceMethodref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2));
         instructions.append(new DUP());
         instructions.append(new ASTORE(LOCAL_VALUE_INDEX));
         instructions.append(new CHECKCAST(helperClassConstantPool.addClass("java.lang.Integer")));
-        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool.addMethodref("java/lang/Integer", "intValue", "()I")));
+        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool
+                .addMethodref("java/lang/Integer", "intValue", "()I")));
         instructions.append(new ICONST(NUMBER_OF_INVOCATIONS_TO_PRINT));
         instructions.append(new IF_ICMPLT(loopEntry));
-        instructions.append(new GETSTATIC(helperClassConstantPool.addFieldref("java/lang/System", "out", "Ljava/io/PrintStream;")));
+        instructions.append(new GETSTATIC(helperClassConstantPool
+                .addFieldref("java/lang/System", "out", "Ljava/io/PrintStream;")));
         instructions.append(new PUSH(helperClassConstantPool, "%s    %d%n"));
         instructions.append(new ICONST(2));
         instructions.append(new ANEWARRAY(helperClassConstantPool.addClass(ObjectType.OBJECT)));
@@ -228,13 +258,16 @@ public class Transform {
         instructions.append(new ICONST(1));
         instructions.append(new ALOAD(LOCAL_VALUE_INDEX));
         instructions.append(new AASTORE());
-        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool.addMethodref("java/io/PrintStream", "printf", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;")));
+        instructions.append(new INVOKEVIRTUAL(helperClassConstantPool
+                .addMethodref("java/io/PrintStream", "printf",
+                        "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;")));
         instructions.append(new POP());
         instructions.append(new GOTO(loopEntry));
         InstructionHandle loopExit = instructions.append(new RETURN());
         loopExitJump.setTarget(loopExit);
 
-        MethodGen methodGen = new MethodGen(ACC_STATIC | ACC_PUBLIC, Type.VOID, Type.NO_ARGS, new String[0], PRINT_STATS_METHOD_NAME, newClass.getClassName(), instructions, helperClassConstantPool);
+        MethodGen methodGen = new MethodGen(ACC_STATIC | ACC_PUBLIC, Type.VOID, Type.NO_ARGS, new String[0],
+                PRINT_STATS_METHOD_NAME, newClass.getClassName(), instructions, helperClassConstantPool);
         methodGen.setMaxLocals();
         methodGen.setMaxStack();
         return methodGen.getMethod();
@@ -258,16 +291,19 @@ public class Transform {
 
     private static Method createRunMethod(ClassGen helperClass, ConstantPoolGen helperClassConstantPool) {
         InstructionList instructions = new InstructionList();
-        instructions.append(new INVOKESTATIC(helperClassConstantPool.addMethodref(helperClass.getClassName(), PRINT_STATS_METHOD_NAME, "()V")));
+        instructions.append(new INVOKESTATIC(helperClassConstantPool
+                .addMethodref(helperClass.getClassName(), PRINT_STATS_METHOD_NAME, "()V")));
         instructions.append(new RETURN());
 
-        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_SYNTHETIC, Type.VOID, new Type[0], new String[0], "run", helperClass.getClassName(), instructions, helperClassConstantPool);
+        MethodGen runMethod = new MethodGen(ACC_PUBLIC | ACC_SYNTHETIC, Type.VOID, new Type[0], new String[0], "run",
+                helperClass.getClassName(), instructions, helperClassConstantPool);
         runMethod.setMaxStack();
         return runMethod.getMethod();
     }
 
     private static Field createStatisticsMap(ConstantPoolGen helperClassConstantPool) {
-        return new FieldGen(ACC_PUBLIC | ACC_STATIC, Type.getType(Map.class), EXECUTION_STATS_FIELD_NAME, helperClassConstantPool).getField();
+        return new FieldGen(ACC_PUBLIC | ACC_STATIC, Type.getType(Map.class), EXECUTION_STATS_FIELD_NAME,
+                helperClassConstantPool).getField();
     }
 
     private static boolean isConstructor(Method method) {
