@@ -1,9 +1,0 @@
-VarDeclT treetop;
-VarDeclT t1;
-VarDeclT t2;
-treetop.f1 = t1;
-treetop.f2 = t2;
-treetop.data = 1;
-treetop.f1.data = 2;
-treetop.f2.data = 3;
-t1 = NULL;

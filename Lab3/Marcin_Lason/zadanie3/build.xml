@@ -1,23 +1,27 @@
 <?xml version="1.0"?>
 <project name="zadanie3" default="default">
-    <property name="src" location="src/"/>
-    <property name="lib" location="lib/"/>
-    <property name="build" location="classes/"/>
-    <property name="ant.build.javac.source" value="1.7"/>
-    <property name="ant.build.javac.target" value="1.7"/>
-    <path id="classpath">
-        <fileset dir="${lib}">
-            <include name="*.jar"/>
-        </fileset>
-    </path>
-    <!-- =================================
-          target: default
+	<property name="src" location="src/"/>
+	<property name="lib" location="lib/"/>
+	<property name="build" location="classes/"/>
+
+	<path id="classpath">
+	  <fileset dir="${lib}"> 
+	    <include name="*.jar"/>
+	  </fileset>
+	</path> 
+
+    <!-- ================================= 
+          target: default              
          ================================= -->
     <target name="default" depends="compile" description="--> description">
+       
     </target>
+
     <target name="compile">
-        <javac source="1.7" target="1.7" srcdir="${src}" destdir="${build}">
-            <classpath refid="classpath"/>
-        </javac>
+    	<javac srcdir="${src}" destdir="${build}">
+    		<classpath refid="classpath"/>
+    	</javac>
     </target>
+
 </project>
+
