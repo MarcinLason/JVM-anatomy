@@ -5,17 +5,17 @@ import npj.ast.data.RValue;
 
 public interface InterpretingVisitor {
 
-	void visitCollect();
+    void visitCollect();
 
-	void visitAssignment(Dereference target, RValue value);
+    void visitAssignment(Dereference target, RValue value);
 
-	void visitPrintDereferenced(String dereferenceToPrint);
+    void visitPrintDereferenced(String dereferenceToPrint);
 
-	void visitPrintLiteral(String literalToPrint);
+    void visitPrintLiteral(String literalToPrint);
 
-	void visitSDeclaration(String name, String initialValue);
+    void visitSDeclaration(String name, String initialValue);
 
-	void visitTDeclaration(String name);
+    void visitTDeclaration(String name);
 
-	void visitHeapAnalyze();
+    void visitHeapAnalyze();
 }
