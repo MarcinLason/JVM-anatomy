@@ -14,6 +14,6 @@ for i in $( ls ); do
  done
 
  cd ../classes
- java -Dnpj.heap.size=21 Interpreter test.npj &> test_out.txt
+ java -Dnpj.heap.size=1024 Interpreter test.npj &> test_out.txt
  cd ..
 done
