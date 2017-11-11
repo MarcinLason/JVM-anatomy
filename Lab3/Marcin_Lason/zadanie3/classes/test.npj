@@ -1,0 +1,13 @@
+VarDecl treetop;
+VarDecl t1;
+VarDecl t2;
+treetop.f1 = t1;
+treetop.f2 = t2;
+treetop.data = 1;
+t1.data = 2;
+t2.data = 3;
+
+Print "Helloworld";
+Print "Helloworld 2";
+Collect;
+HeapAnalyze;
