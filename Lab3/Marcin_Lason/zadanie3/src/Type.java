@@ -7,8 +7,9 @@ public enum Type {
     private static final Map<Integer, Type> codeToType = new HashMap<>();
 
     static {
-        for (Type type : values())
+        for (Type type : values()) {
             codeToType.put(type.code, type);
+        }
     }
 
     public final int code;
@@ -21,7 +22,9 @@ public enum Type {
 
     public static Type forCode(int code) {
         Type type = codeToType.get(code);
-        if (type == null) throw new RuntimeException("Unsupported variable type code.");
+        if (type == null) {
+            throw new RuntimeException("Unsupported variable type code.");
+        }
         return type;
     }
 }

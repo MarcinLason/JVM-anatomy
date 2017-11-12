@@ -9,7 +9,7 @@ public class NPJInterpreter extends NPJBaseListener {
     private final static int NULL_PTR = 0;
     private final Memory memory;
     private final int[] heap;
-    private final HashMap<String, VariableInfo> nameToVariableInfo;
+    private final HashMap<String, Variable> nameToVariableInfo;
 
     public NPJInterpreter(Memory memory, int[] heap) {
         this.memory = memory;
@@ -22,7 +22,7 @@ public class NPJInterpreter extends NPJBaseListener {
     public void exitVarDeclT(NPJParser.VarDeclTContext ctx) {
         final int idx = memory.allocateT(heap, (Map) nameToVariableInfo);
         final String name = ctx.STRING().getText();
-        final VariableInfo info = new VariableInfo(Type.T, idx);
+        final Variable info = new Variable(Type.T, idx);
         nameToVariableInfo.put(name, info);
     }
 
@@ -36,7 +36,7 @@ public class NPJInterpreter extends NPJBaseListener {
     @Override
     public void exitVarDeclSNull(NPJParser.VarDeclSNullContext ctx) {
         final String name = ctx.STRING().getText();
-        final VariableInfo date = new VariableInfo(Type.S, NULL_PTR);
+        final Variable date = new Variable(Type.S, NULL_PTR);
         nameToVariableInfo.put(name, date);
     }
 
@@ -53,12 +53,12 @@ public class NPJInterpreter extends NPJBaseListener {
 
     @Override
     public void exitPrintStringConst(NPJParser.PrintStringConstContext ctx) {
-        final VariableInfo info = nameToVariableInfo.get(ctx.STRING().getText());
-        if (info.type != Type.S) {
+        final Variable info = nameToVariableInfo.get(ctx.STRING().getText());
+        if (info.getType() != Type.S) {
             throw new RuntimeException("Could not print non-string value.");
         }
 
-        NPJ.print(readString(info.index));
+        NPJ.print(readString(info.getIndex()));
     }
 
     @Override
@@ -117,7 +117,7 @@ public class NPJInterpreter extends NPJBaseListener {
         for (int i = 0; i < value.length(); i++) {
             heap[idx + Type.S.baseSize + i] = value.charAt(i);
         }
-        nameToVariableInfo.put(name, new VariableInfo(Type.S, idx));
+        nameToVariableInfo.put(name, new Variable(Type.S, idx));
     }
 
     private String readString(int idx) {
@@ -137,7 +137,7 @@ public class NPJInterpreter extends NPJBaseListener {
     private int findIdx(String value) {
         List<String> parts = Arrays.asList(value.split("\\."));
         Iterator<String> it = parts.iterator();
-        int idx = nameToVariableInfo.get(it.next()).index;
+        int idx = nameToVariableInfo.get(it.next()).getIndex();
         while (it.hasNext()) {
             switch (it.next()) {
                 case "f1":
