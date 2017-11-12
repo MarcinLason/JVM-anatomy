@@ -1,3 +1,5 @@
+package utils;
+
 public class Variable {
     private final Type type;
     private int index;

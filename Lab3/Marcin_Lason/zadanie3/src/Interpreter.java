@@ -38,7 +38,7 @@ public class Interpreter {
             System.out.println("Error while reading " + programFilename + ".");
             System.exit(1);
         }
-        npjParser.addParseListener(new NPJInterpreter(new SemiSpaceCopyingMemory(heapSize), heap));
+        npjParser.addParseListener(new NPJInterpreter(new GarbageCollector(heapSize), heap));
         npjParser.program();
     }
 }

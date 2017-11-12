@@ -1,5 +1,7 @@
 import npj.generated.NPJBaseListener;
 import npj.generated.NPJParser;
+import utils.Type;
+import utils.Variable;
 
 import java.util.*;
 

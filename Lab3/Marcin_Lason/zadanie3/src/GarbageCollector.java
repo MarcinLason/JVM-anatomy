@@ -1,6 +1,9 @@
+import utils.Type;
+import utils.Variable;
+
 import java.util.Map;
 
-public class SemiSpaceCopyingMemory implements Collector, Memory {
+public class GarbageCollector implements Collector, Memory {
 
     private final static int STRING_LENGTH_OFFSET = 1;
     private final static int NULL_PTR = 0;
@@ -10,7 +13,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
     private int toSpaceIndex = 1;
     private int allocationIndex;
 
-    public SemiSpaceCopyingMemory(int heapSize) {
+    public GarbageCollector(int heapSize) {
         halfOfHeap = heapSize / 2;
         fromSpaceIndex = halfOfHeap + 1;
         allocationIndex = toSpaceIndex;
