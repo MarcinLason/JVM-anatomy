@@ -10,116 +10,124 @@ public class NPJInterpreter extends NPJBaseListener {
     private final static int STRING_LENGTH_OFFSET = 1;
     private final static int NULL_PTR = 0;
     private final Memory memory;
+    private final HashMap<String, Variable> variables;
     private final int[] heap;
-    private final HashMap<String, Variable> nameToVariableInfo;
 
     public NPJInterpreter(Memory memory, int[] heap) {
         this.memory = memory;
         this.heap = heap;
-        nameToVariableInfo = new HashMap<>();
+        variables = new HashMap<>();
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void exitVarDeclT(NPJParser.VarDeclTContext ctx) {
-        final int idx = memory.allocateT(heap, (Map) nameToVariableInfo);
-        final String name = ctx.STRING().getText();
-        final Variable info = new Variable(Type.T, idx);
-        nameToVariableInfo.put(name, info);
+    public void exitVarDeclT(NPJParser.VarDeclTContext context) {
+        final int index = memory.allocateT(heap, (Map) variables);
+        final String name = context.STRING().getText();
+        final Variable variable = new Variable(Type.T, index);
+        variables.put(name, variable);
     }
 
     @Override
-    public void exitVarDeclSConst(NPJParser.VarDeclSConstContext ctx) {
-        final String name = ctx.STRING(0).getText();
-        final String value = ctx.STRING(1).getText();
+    public void exitVarDeclSConst(NPJParser.VarDeclSConstContext context) {
+        final String name = context.STRING(0).getText();
+        final String value = context.STRING(1).getText();
         allocateString(name, value);
     }
 
     @Override
-    public void exitVarDeclSNull(NPJParser.VarDeclSNullContext ctx) {
-        final String name = ctx.STRING().getText();
-        final Variable date = new Variable(Type.S, NULL_PTR);
-        nameToVariableInfo.put(name, date);
+    public void exitVarDeclSNull(NPJParser.VarDeclSNullContext context) {
+        final String name = context.STRING().getText();
+        final Variable variable = new Variable(Type.S, NULL_PTR);
+        variables.put(name, variable);
     }
 
     @Override
-    public void exitPrintStringMessage(NPJParser.PrintStringMessageContext ctx) {
-        NPJ.print(ctx.STRING().getText());
+    public void exitPrintStringMessage(NPJParser.PrintStringMessageContext context) {
+        NPJ.print(context.STRING().getText());
     }
 
     @Override
-    public void exitPrintQuoted(NPJParser.PrintQuotedContext ctx) {
-        String original = ctx.QUOTED().getText();
+    public void exitPrintQuoted(NPJParser.PrintQuotedContext context) {
+        String original = context.QUOTED().getText();
         NPJ.print(original.substring(1, original.length() - 1));
     }
 
     @Override
-    public void exitPrintStringConst(NPJParser.PrintStringConstContext ctx) {
-        final Variable info = nameToVariableInfo.get(ctx.STRING().getText());
-        if (info.getType() != Type.S) {
+    public void exitPrintStringConst(NPJParser.PrintStringConstContext context) {
+        final Variable variable = variables.get(context.STRING().getText());
+        if (variable != null && variable.getType() != Type.S) {
             throw new RuntimeException("Could not print non-string value.");
         }
 
-        NPJ.print(readString(info.getIndex()));
+        if (variable != null) {
+            NPJ.print(readString(variable.getIndex()));
+        } else {
+            NPJ.print("NULL");
+        }
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void exitCollect(NPJParser.CollectContext ctx) {
-        NPJ.collect(heap, memory, (Map) nameToVariableInfo);
+    public void exitCollect(NPJParser.CollectContext context) {
+        NPJ.collect(heap, memory, (Map) variables);
     }
 
     @Override
-    public void exitAssignment(NPJParser.AssignmentContext ctx) {
-        final String lValue = ctx.lValue().getText();
-        final String rValue = ctx.rValue().getText();
-        final int leftIdx = findIdx(lValue);
-        if ("NULL".equals(rValue)) {
-            heap[leftIdx] = NULL_PTR;
+    public void exitAssignment(NPJParser.AssignmentContext context) {
+        final String left = context.lValue().getText();
+        final String right = context.rValue().getText();
+        final int leftIndex = findIndex(left);
+
+        if ("NULL".equals(right)) {
+            heap[leftIndex] = NULL_PTR;
             return;
-        } else if (rValue.startsWith("\"")) {
-            allocateString(lValue, rValue.substring(1, rValue.length() - 1));
+        } else if (right.startsWith("\"")) {
+            allocateString(left, right.substring(1, right.length() - 1));
             return;
         }
         try {
-            heap[leftIdx] = Integer.parseInt(rValue);
-        } catch (NumberFormatException nfe) {
-            heap[leftIdx] = findIdx(rValue);
+            heap[leftIndex] = Integer.parseInt(right);
+        } catch (NumberFormatException e) {
+            heap[leftIndex] = findIndex(right);
         }
     }
 
     @Override
-    public void exitHeapAnalyze(NPJParser.HeapAnalyzeContext ctx) {
-        final ArrayList<Integer> typeTVariables = new ArrayList<>();
-        final ArrayList<String> typeSVariables = new ArrayList<>();
-        final int toSpaceIdx = memory.getToSpaceIndex();
-        int idx = toSpaceIdx;
-        while (idx < toSpaceIdx + (heap.length / 2)) {
-            int code = heap[idx];
+    public void exitHeapAnalyze(NPJParser.HeapAnalyzeContext context) {
+        final List<Integer> tVariables = new ArrayList<>();
+        final List<String> sVariables = new ArrayList<>();
+        final int toSpaceIndex = memory.getToSpaceIndex();
+        int index = toSpaceIndex;
+
+        while (index < toSpaceIndex + (heap.length / 2)) {
+
+            int code = heap[index];
             Type type = code < 0 ? Type.forCode(code) : null;
             if (type != null) {
                 switch (type) {
                     case S:
-                        typeSVariables.add(readString(idx));
-                        idx += Type.S.baseSize + heap[idx + STRING_LENGTH_OFFSET] - 1;
+                        sVariables.add(readString(index));
+                        index += Type.S.baseSize + heap[index + STRING_LENGTH_OFFSET] - 1;
                         break;
                     case T:
-                        idx += 3;
-                        typeTVariables.add(heap[idx]);
+                        index += 3;
+                        tVariables.add(heap[index]);
                 }
             }
-            idx++;
+            index++;
         }
-        NPJ.heapAnalyze(typeTVariables, typeSVariables);
+        NPJ.heapAnalyze(tVariables, sVariables);
     }
 
     @SuppressWarnings("unchecked")
     private void allocateString(String name, String value) {
-        final int idx = memory.allocateS(heap, (Map) nameToVariableInfo, value.length());
+        final int index = memory.allocateS(heap, (Map) variables, value.length());
+
         for (int i = 0; i < value.length(); i++) {
-            heap[idx + Type.S.baseSize + i] = value.charAt(i);
+            heap[index + Type.S.baseSize + i] = value.charAt(i);
         }
-        nameToVariableInfo.put(name, new Variable(Type.S, idx));
+        variables.put(name, new Variable(Type.S, index));
     }
 
     private String readString(int idx) {
@@ -136,28 +144,29 @@ public class NPJInterpreter extends NPJBaseListener {
         return builder.toString();
     }
 
-    private int findIdx(String value) {
+    private int findIndex(String value) {
         List<String> parts = Arrays.asList(value.split("\\."));
-        Iterator<String> it = parts.iterator();
-        int idx = nameToVariableInfo.get(it.next()).getIndex();
-        while (it.hasNext()) {
-            switch (it.next()) {
+        Iterator<String> iterator = parts.iterator();
+        int index = variables.get(iterator.next()).getIndex();
+
+        while (iterator.hasNext()) {
+            switch (iterator.next()) {
                 case "f1":
-                    idx += 1;
+                    index += 1;
                     break;
                 case "f2":
-                    idx += 2;
+                    index += 2;
                     break;
                 case "data":
-                    idx += 3;
+                    index += 3;
                     break;
                 default:
                     throw new RuntimeException("Invalid reference");
             }
-            if (it.hasNext()) {
-                idx = heap[idx];
+            if (iterator.hasNext()) {
+                index = heap[index];
             }
         }
-        return idx;
+        return index;
     }
 }
