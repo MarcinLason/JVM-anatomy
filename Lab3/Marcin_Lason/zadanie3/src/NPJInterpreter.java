@@ -5,6 +5,8 @@ import java.util.*;
 
 public class NPJInterpreter extends NPJBaseListener {
 
+    private final static int STRING_LENGTH_OFFSET = 1;
+    private final static int NULL_PTR = 0;
     private final Memory memory;
     private final int[] heap;
     private final HashMap<String, VariableInfo> nameToVariableInfo;
@@ -34,7 +36,7 @@ public class NPJInterpreter extends NPJBaseListener {
     @Override
     public void exitVarDeclSNull(NPJParser.VarDeclSNullContext ctx) {
         final String name = ctx.STRING().getText();
-        final VariableInfo date = new VariableInfo(Type.S, NPJConst.NULL_PTR);
+        final VariableInfo date = new VariableInfo(Type.S, NULL_PTR);
         nameToVariableInfo.put(name, date);
     }
 
@@ -70,8 +72,8 @@ public class NPJInterpreter extends NPJBaseListener {
         final String lValue = ctx.lValue().getText();
         final String rValue = ctx.rValue().getText();
         final int leftIdx = findIdx(lValue);
-        if (NPJConst.NULL_VALUE.equals(rValue)) {
-            heap[leftIdx] = NPJConst.NULL_PTR;
+        if ("NULL".equals(rValue)) {
+            heap[leftIdx] = NULL_PTR;
             return;
         } else if (rValue.startsWith("\"")) {
             allocateString(lValue, rValue.substring(1, rValue.length() - 1));
@@ -97,7 +99,7 @@ public class NPJInterpreter extends NPJBaseListener {
                 switch (type) {
                     case S:
                         typeSVariables.add(readString(idx));
-                        idx += Type.S.baseSize + heap[idx + NPJConst.STRING_LENGTH_OFFSET] - 1;
+                        idx += Type.S.baseSize + heap[idx + STRING_LENGTH_OFFSET] - 1;
                         break;
                     case T:
                         idx += 3;
@@ -119,11 +121,11 @@ public class NPJInterpreter extends NPJBaseListener {
     }
 
     private String readString(int idx) {
-        if (heap[idx] == NPJConst.NULL_PTR) {
-            return NPJConst.NULL_VALUE;
+        if (heap[idx] == NULL_PTR) {
+            return "NULL";
         }
 
-        final int length = heap[idx + NPJConst.STRING_LENGTH_OFFSET];
+        final int length = heap[idx + STRING_LENGTH_OFFSET];
         final StringBuilder builder = new StringBuilder(length);
 
         for (int i = 0; i < length; i++)
@@ -138,13 +140,13 @@ public class NPJInterpreter extends NPJBaseListener {
         int idx = nameToVariableInfo.get(it.next()).index;
         while (it.hasNext()) {
             switch (it.next()) {
-                case NPJConst.FIELD_1:
+                case "f1":
                     idx += 1;
                     break;
-                case NPJConst.FIELD_2:
+                case "f2":
                     idx += 2;
                     break;
-                case NPJConst.FIELD_DATA:
+                case "data":
                     idx += 3;
                     break;
                 default:

@@ -2,6 +2,8 @@ import java.util.Map;
 
 public class SemiSpaceCopyingMemory implements Collector, Memory {
 
+    private final static int STRING_LENGTH_OFFSET = 1;
+    private final static int NULL_PTR = 0;
     private final int halfSize;
     private int toSpaceIdx = 1;
     private int fromSpaceIdx;
@@ -22,7 +24,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
     public int allocateT(int[] heap, Map<Object, Object> objects) {
         int idx = allocate(heap, objects, Type.T.baseSize);
         heap[idx] = Type.T.code;
-        heap[idx + 1] = heap[idx + 2] = NPJConst.NULL_PTR;
+        heap[idx + 1] = heap[idx + 2] = NULL_PTR;
         heap[idx + 3] = 0;
         return idx;
     }
@@ -31,7 +33,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
     public int allocateS(int[] heap, Map<Object, Object> objects, int stringLength) {
         int idx = allocate(heap, objects, Type.S.baseSize + stringLength);
         heap[idx] = Type.S.code;
-        heap[idx + NPJConst.STRING_LENGTH_OFFSET] = stringLength;
+        heap[idx + STRING_LENGTH_OFFSET] = stringLength;
         return idx;
     }
 
@@ -89,7 +91,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
             case T:
                 return type.baseSize;
             case S:
-                return type.baseSize + heap[idx + NPJConst.STRING_LENGTH_OFFSET];
+                return type.baseSize + heap[idx + STRING_LENGTH_OFFSET];
         }
         throw new RuntimeException("Undefined variable size.");
     }
