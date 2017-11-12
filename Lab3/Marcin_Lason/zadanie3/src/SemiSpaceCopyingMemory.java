@@ -18,7 +18,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
     }
 
     @Override
-    public int getToSpaceIdx() {
+    public int getToSpaceIndex() {
         return toSpaceIdx;
     }
 
@@ -45,7 +45,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
 
     private int allocate(int[] heap, Map<Object, Object> objects, int size) {
         if (cannotAllocate(size)) collect(heap, objects);
-        if (cannotAllocate(size)) throw new InterpreterOutOfMemoryError();
+        if (cannotAllocate(size)) throw new Error("Interpreter ran out of memory.");
         int idx = allocationIdx;
         allocationIdx += size;
         return idx;
@@ -95,6 +95,6 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
             case S:
                 return type.baseSize + heap[idx + NPJConst.STRING_LENGTH_OFFSET];
         }
-        throw new InterpreterRuntimeException("Undefined variable size.");
+        throw new RuntimeException("Undefined variable size.");
     }
 }

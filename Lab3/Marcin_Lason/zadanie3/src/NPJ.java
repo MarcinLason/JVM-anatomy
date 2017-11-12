@@ -2,6 +2,7 @@ import java.util.Collection;
 import java.util.Map;
 
 public class NPJ {
+
     public static void print(String string) {
         System.out.println(string);
     }
@@ -14,18 +15,18 @@ public class NPJ {
       typeTVariables - kolekcja wartosci pola "data" wszystkich zywych obiektow typu T
       typeSVariables - kolekcja wartosci wszystkich zywych obiektow typu S
     */
+
     public static void heapAnalyze(Collection<Integer> typeTVariables, Collection<String> typeSVariables) {
         print("");
         print("Type T variables:");
-        for (int var : typeTVariables) {
-            print(String.valueOf(var));
+
+        for (int variable : typeTVariables) {
+            print(String.valueOf(variable));
         }
-        print("=================");
+        
         print("Type S variables:");
-        for (String var : typeSVariables) {
-            print(var);
+        for (String variable : typeSVariables) {
+            print(variable);
         }
     }
-
-
 }

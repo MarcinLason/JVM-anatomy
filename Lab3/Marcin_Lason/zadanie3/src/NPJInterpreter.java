@@ -91,7 +91,7 @@ public class NPJInterpreter extends NPJBaseListener {
     public void exitHeapAnalyze(NPJParser.HeapAnalyzeContext ctx) {
         final ArrayList<Integer> typeTVariables = new ArrayList<>();
         final ArrayList<String> typeSVariables = new ArrayList<>();
-        final int toSpaceIdx = memory.getToSpaceIdx();
+        final int toSpaceIdx = memory.getToSpaceIndex();
         int idx = toSpaceIdx;
         while (idx < toSpaceIdx + (heap.length / 2)) {
             int code = heap[idx];
@@ -151,7 +151,7 @@ public class NPJInterpreter extends NPJBaseListener {
                     idx += 3;
                     break;
                 default:
-                    throw new InterpreterRuntimeException("Invalid reference");
+                    throw new RuntimeException("Invalid reference");
             }
             if (it.hasNext()) {
                 idx = heap[idx];

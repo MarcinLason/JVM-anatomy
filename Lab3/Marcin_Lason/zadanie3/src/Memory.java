@@ -6,5 +6,5 @@ public interface Memory extends Collector {
 
     int allocateS(int[] heap, Map<Object, Object> objects, int stringLength);
 
-    int getToSpaceIdx();
+    int getToSpaceIndex();
 }

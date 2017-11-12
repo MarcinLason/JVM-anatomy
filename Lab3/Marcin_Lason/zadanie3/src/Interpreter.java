@@ -9,37 +9,36 @@ import java.io.IOException;
 
 public class Interpreter {
 
-    public static final String NPJ_HEAP_SIZE_PROPERTY = "npj.heap.size";
-    private final String programFile;
+    public static final String HEAP_SIZE_PROPERTY = "npj.heap.size";
+    private final String programFilename;
     private final int heapSize;
     private final int[] heap;
 
-    public Interpreter(String programFile, int heapSize) {
-        this.programFile = programFile;
+    public static void main(String[] args) {
+        if (args.length != 1) {
+            System.out.println("Wrong number of arguments - pass program file name");
+            System.exit(1);
+        }
+        new Interpreter(args[0], Integer.valueOf(System.getProperty(HEAP_SIZE_PROPERTY))).run();
+    }
+
+    public Interpreter(String programFilename, int heapSize) {
+        this.programFilename = programFilename;
         this.heapSize = heapSize;
         this.heap = new int[heapSize];
     }
 
-    public static void main(String[] args) {
-        new Interpreter(args[0], Integer.valueOf(System.getProperty(NPJ_HEAP_SIZE_PROPERTY))).run();
-    }
-
-    private NPJParser createParser() throws IOException {
-        NPJLexer lexer = new NPJLexer(new ANTLRInputStream(new FileInputStream(programFile)));
-        TokenStream tokens = new CommonTokenStream(lexer);
-        return new NPJParser(tokens);
-    }
-
     public void run() {
-        NPJParser parser = null;
+        NPJParser npjParser = null;
         try {
-            parser = createParser();
+            NPJLexer npjLexer = new NPJLexer(new ANTLRInputStream(new FileInputStream(programFilename)));
+            TokenStream tokenStream = new CommonTokenStream(npjLexer);
+            npjParser = new NPJParser(tokenStream);
         } catch (IOException e) {
-            System.out.println("Cannot read " + programFile);
+            System.out.println("Error while reading " + programFilename + ".");
             System.exit(1);
         }
-        parser.addParseListener(new NPJInterpreter(new SemiSpaceCopyingMemory(heapSize), heap));
-        parser.program();
+        npjParser.addParseListener(new NPJInterpreter(new SemiSpaceCopyingMemory(heapSize), heap));
+        npjParser.program();
     }
-
 }
