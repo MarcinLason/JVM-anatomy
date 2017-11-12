@@ -1,6 +1,3 @@
-import npj.NPJConst;
-import npj.Type;
-import npj.VariableInfo;
 import npj.generated.NPJBaseListener;
 import npj.generated.NPJParser;
 
@@ -23,7 +20,7 @@ public class NPJInterpreter extends NPJBaseListener {
     public void exitVarDeclT(NPJParser.VarDeclTContext ctx) {
         final int idx = memory.allocateT(heap, (Map) nameToVariableInfo);
         final String name = ctx.STRING().getText();
-        final VariableInfo info = new VariableInfo(idx, Type.T);
+        final VariableInfo info = new VariableInfo(Type.T, idx);
         nameToVariableInfo.put(name, info);
     }
 
@@ -37,7 +34,7 @@ public class NPJInterpreter extends NPJBaseListener {
     @Override
     public void exitVarDeclSNull(NPJParser.VarDeclSNullContext ctx) {
         final String name = ctx.STRING().getText();
-        final VariableInfo date = new VariableInfo(NPJConst.NULL_PTR, Type.S);
+        final VariableInfo date = new VariableInfo(Type.S, NPJConst.NULL_PTR);
         nameToVariableInfo.put(name, date);
     }
 
@@ -59,7 +56,7 @@ public class NPJInterpreter extends NPJBaseListener {
             throw new RuntimeException("Could not print non-string value.");
         }
 
-        NPJ.print(readString(info.idx));
+        NPJ.print(readString(info.index));
     }
 
     @Override
@@ -118,7 +115,7 @@ public class NPJInterpreter extends NPJBaseListener {
         for (int i = 0; i < value.length(); i++) {
             heap[idx + Type.S.baseSize + i] = value.charAt(i);
         }
-        nameToVariableInfo.put(name, new VariableInfo(idx, Type.S));
+        nameToVariableInfo.put(name, new VariableInfo(Type.S, idx));
     }
 
     private String readString(int idx) {
@@ -138,7 +135,7 @@ public class NPJInterpreter extends NPJBaseListener {
     private int findIdx(String value) {
         List<String> parts = Arrays.asList(value.split("\\."));
         Iterator<String> it = parts.iterator();
-        int idx = nameToVariableInfo.get(it.next()).idx;
+        int idx = nameToVariableInfo.get(it.next()).index;
         while (it.hasNext()) {
             switch (it.next()) {
                 case NPJConst.FIELD_1:

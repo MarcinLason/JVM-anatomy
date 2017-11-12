@@ -1,7 +1,3 @@
-import npj.NPJConst;
-import npj.Type;
-import npj.VariableInfo;
-
 import java.util.Map;
 
 public class SemiSpaceCopyingMemory implements Collector, Memory {
@@ -61,7 +57,7 @@ public class SemiSpaceCopyingMemory implements Collector, Memory {
         allocationIdx = toSpaceIdx;
 
         for (VariableInfo info : ((Map<String, VariableInfo>) (Map) params).values())
-            info.idx = copy(heap, info.idx);
+            info.index = copy(heap, info.index);
 
         int zeroEndIdx = fromSpaceIdx + halfSize;
 
