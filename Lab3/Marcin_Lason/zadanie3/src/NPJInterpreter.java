@@ -61,7 +61,7 @@ public class NPJInterpreter extends NPJBaseListener {
         }
 
         if (variable != null) {
-            NPJ.print(readString(variable.getIndex()));
+            NPJ.print(getString(variable.getIndex()));
         } else {
             NPJ.print("NULL");
         }
@@ -77,7 +77,7 @@ public class NPJInterpreter extends NPJBaseListener {
     public void exitAssignment(NPJParser.AssignmentContext context) {
         final String left = context.lValue().getText();
         final String right = context.rValue().getText();
-        final int leftIndex = findIndex(left);
+        final int leftIndex = getIndex(left);
 
         if ("NULL".equals(right)) {
             heap[leftIndex] = NULL_PTR;
@@ -89,7 +89,7 @@ public class NPJInterpreter extends NPJBaseListener {
         try {
             heap[leftIndex] = Integer.parseInt(right);
         } catch (NumberFormatException e) {
-            heap[leftIndex] = findIndex(right);
+            heap[leftIndex] = getIndex(right);
         }
     }
 
@@ -107,7 +107,7 @@ public class NPJInterpreter extends NPJBaseListener {
             if (type != null) {
                 switch (type) {
                     case S:
-                        sVariables.add(readString(index));
+                        sVariables.add(getString(index));
                         index += Type.S.baseSize + heap[index + STRING_LENGTH_OFFSET] - 1;
                         break;
                     case T:
@@ -130,38 +130,35 @@ public class NPJInterpreter extends NPJBaseListener {
         variables.put(name, new Variable(Type.S, index));
     }
 
-    private String readString(int idx) {
+    private String getString(int idx) {
         if (heap[idx] == NULL_PTR) {
             return "NULL";
         }
 
         final int length = heap[idx + STRING_LENGTH_OFFSET];
-        final StringBuilder builder = new StringBuilder(length);
+        String result = "";
 
-        for (int i = 0; i < length; i++)
-            builder.append((char) heap[idx + Type.S.baseSize + i]);
-
-        return builder.toString();
+        for (int i = 0; i < length; i++) {
+            result = result + ((char) heap[idx + Type.S.baseSize + i]);
+        }
+        return result;
     }
 
-    private int findIndex(String value) {
+    private int getIndex(String value) {
         List<String> parts = Arrays.asList(value.split("\\."));
         Iterator<String> iterator = parts.iterator();
         int index = variables.get(iterator.next()).getIndex();
 
         while (iterator.hasNext()) {
-            switch (iterator.next()) {
-                case "f1":
-                    index += 1;
-                    break;
-                case "f2":
-                    index += 2;
-                    break;
-                case "data":
-                    index += 3;
-                    break;
-                default:
-                    throw new RuntimeException("Invalid reference");
+            String next = iterator.next();
+            if (next.equals("f1")) {
+                index += 1;
+            } else if (next.equals("f2")) {
+                index += 2;
+            } else if (next.equals("data")) {
+                index += 3;
+            } else {
+                throw new RuntimeException("Invalid reference");
             }
             if (iterator.hasNext()) {
                 index = heap[index];

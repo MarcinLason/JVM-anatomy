@@ -6,11 +6,11 @@ import java.util.Map;
 public enum Type {
     S(-2, 2), T(-4, 4);
 
-    private static final Map<Integer, Type> codeToType = new HashMap<>();
+    private static final Map<Integer, Type> codes = new HashMap<>();
 
     static {
         for (Type type : values()) {
-            codeToType.put(type.code, type);
+            codes.put(type.code, type);
         }
     }
 
@@ -23,7 +23,7 @@ public enum Type {
     }
 
     public static Type forCode(int code) {
-        Type type = codeToType.get(code);
+        Type type = codes.get(code);
         if (type == null) {
             throw new RuntimeException("Unsupported variable type code.");
         }

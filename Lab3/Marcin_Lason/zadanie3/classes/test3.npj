@@ -1,2 +1,5 @@
 VarDeclS s1 "test1";
 VarDeclS s2 "test2";
+Print something;
+HeapAnalyze;
+Collect;

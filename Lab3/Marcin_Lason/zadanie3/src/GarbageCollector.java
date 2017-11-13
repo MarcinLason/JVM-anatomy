@@ -53,8 +53,8 @@ public class GarbageCollector implements Collector, Memory {
             info.setIndex(copy(heap, info.getIndex()));
         }
 
-        int zeroEndIdx = fromSpaceIndex + halfOfHeap;
-        for (int i = fromSpaceIndex; i < zeroEndIdx; i++) {
+        int zeroEndIndex = fromSpaceIndex + halfOfHeap;
+        for (int i = fromSpaceIndex; i < zeroEndIndex; i++) {
             heap[i] = 0;
         }
     }
