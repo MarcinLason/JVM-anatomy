@@ -1,9 +1,9 @@
 #!/bin/bash
-cd Lab3
+cd Lab4
 
 for i in $( ls ); do
  cd $i
- cd zadanie3
+ cd zadanie4
  ant &> ../compile.txt
 
  CLASSPATH=.
@@ -14,8 +14,7 @@ for i in $( ls ); do
  done
 
  cd ../classes
- java -Dnpj.heap.size=1025 Interpreter test1.npj &> test1_out.txt
- java -Dnpj.heap.size=1025 Interpreter test2.npj &> test2_out.txt
- java -Dnpj.heap.size=1025 Interpreter test3.npj &> test3_out.txt
+ java ProblemSixSolver First Second
+ java ProblemSixSolver C A
  cd ..
 done
