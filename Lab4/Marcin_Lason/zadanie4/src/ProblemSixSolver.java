@@ -11,9 +11,9 @@ import java.util.Map;
 
 public class ProblemSixSolver {
 
-    private static final String NO_MATCHING_METHOD = "No matching method found!";
     private final JavaClass sourceClass;
     private ConstantPoolGen modifyingClassConstPool;
+    private static final String NO_MATCHING_METHOD = "No matching method found!";
 
     public ProblemSixSolver(JavaClass sourceClass) {
         this.sourceClass = sourceClass;
@@ -73,23 +73,22 @@ public class ProblemSixSolver {
     private InstructionList inlineMethod(MethodGen modifyingMethod, InvokeInstruction instruction,
                                          InstructionHandle nextInstruction) {
         INVOKEVIRTUAL methodInvocation = (INVOKEVIRTUAL) instruction;
+        InstructionList checkInstructions = new InstructionList();
+        InstructionList translatedMethodInstructions = new InstructionList();
+        Map<InstructionHandle, InstructionHandle> handleMapper = new HashMap<InstructionHandle, InstructionHandle>();
+        Map<BranchHandle, InstructionHandle> branchToHandle = new HashMap<BranchHandle, InstructionHandle>();
+
         Method matchingMethod = findMatchingMethod(methodInvocation);
         int modifyingMethodLocalsOffset = modifyingMethod.getMaxLocals();
 
         updateCallersMaxStackAndLocals(modifyingMethod, matchingMethod);
-
         InstructionList stackInstructions = loadLocals(matchingMethod, modifyingMethodLocalsOffset);
-        InstructionList checkInstructions = new InstructionList();
         BranchHandle checkJumpInstruction = prepareCheckInstructions(checkInstructions, modifyingMethodLocalsOffset,
                 matchingMethod, methodInvocation, nextInstruction);
 
-        Map<InstructionHandle, InstructionHandle> handleMapper = new HashMap<InstructionHandle, InstructionHandle>();
-        Map<BranchHandle, InstructionHandle> branchToHandle = new HashMap<BranchHandle, InstructionHandle>();
         InstructionList sourceMethodCode = new InstructionList(matchingMethod.getCode().getCode());
-
         sourceMethodCode.replaceConstantPool(new ConstantPoolGen(matchingMethod.getConstantPool()),
                 modifyingClassConstPool);
-        InstructionList translatedMethodInstructions = new InstructionList();
         Iterator sourceMethodCodeIterator = sourceMethodCode.iterator();
 
         while (sourceMethodCodeIterator.hasNext()) {
@@ -126,7 +125,6 @@ public class ProblemSixSolver {
         checkJumpInstruction.setTarget(translatedMethodInstructions.getInstructionHandles()[0]);
         stackInstructions.append(checkInstructions);
         stackInstructions.append(translatedMethodInstructions);
-
         return stackInstructions;
     }
 
