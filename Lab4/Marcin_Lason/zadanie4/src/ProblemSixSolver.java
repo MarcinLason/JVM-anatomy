@@ -19,45 +19,48 @@ public class ProblemSixSolver {
     }
 
     public static void main(String[] args) throws IOException {
-        String callerClassFile = args[0] + ".class";
-        ClassParser parser = new ClassParser(callerClassFile);
-        JavaClass classBeingRewritten = parser.parse();
-
-        String classToInlineFile = args[1] + ".class";
-        JavaClass inlinedClass = new ClassParser(classToInlineFile).parse();
-
-        ProblemSixSolver callInliner = new ProblemSixSolver(inlinedClass);
-        JavaClass inlinedCaller = callInliner.inlineMethodCalls(classBeingRewritten);
-
-        inlinedCaller.dump(callerClassFile);
-    }
-
-    private JavaClass inlineMethodCalls(JavaClass classBeingRewritten) {
-        ClassGen newClass = new ClassGen(classBeingRewritten);
-        modifiedClassConstPool = newClass.getConstantPool();
-
-        for (Method rewrittenMethod : newClass.getMethods()) {
-            MethodGen newMethod = new MethodGen(rewrittenMethod, classBeingRewritten.getClassName(), modifiedClassConstPool);
-            inlineCalls(newMethod);
-            newClass.replaceMethod(rewrittenMethod, newMethod.getMethod());
+        if (args.length != 2) {
+            System.err.println("Invalid amount of arguments!");
+            return;
         }
-        return newClass.getJavaClass();
+
+        String toModifyClassName = args[0] + ".class";
+        String inlineSourceClassName = args[1] + ".class";
+
+        JavaClass toModifyClass = parseForClassName(toModifyClassName);
+        JavaClass inlineSourceClass = parseForClassName(inlineSourceClassName);
+
+        ProblemSixSolver solver = new ProblemSixSolver(inlineSourceClass);
+        JavaClass modifiedClass = solver.inlineMethodCalls(toModifyClass);
+
+        modifiedClass.dump(toModifyClassName);
     }
 
-    private void inlineCalls(MethodGen newMethod) {
-        InstructionList instructions = newMethod.getInstructionList();
+    private JavaClass inlineMethodCalls(JavaClass classToModify) {
+        ClassGen modifyingClass = new ClassGen(classToModify);
+        modifiedClassConstPool = modifyingClass.getConstantPool();
+
+        for (Method method : modifyingClass.getMethods()) {
+            MethodGen modifiedMethod = new MethodGen(method, classToModify.getClassName(), modifiedClassConstPool);
+            inlineCalls(modifiedMethod);
+            modifyingClass.replaceMethod(method, modifiedMethod.getMethod());
+        }
+        return modifyingClass.getJavaClass();
+    }
+
+    private void inlineCalls(MethodGen modifiedMethod) {
+        InstructionList instructions = modifiedMethod.getInstructionList();
         InstructionHandle inspectedInstructionHandle = instructions.getStart();
         do {
             InstructionHandle nextHandle = inspectedInstructionHandle.getNext();
             Instruction instruction = inspectedInstructionHandle.getInstruction();
 
             if (isMethodCall(instruction) && shouldBeInlined(instruction)) {
-                InstructionList instructionsToPrepend = inlineMethod(newMethod, (InvokeInstruction) instruction, nextHandle);
+                InstructionList instructionsToPrepend = inlineMethod(modifiedMethod, (InvokeInstruction) instruction, nextHandle);
                 instructions.insert(inspectedInstructionHandle, instructionsToPrepend);
                 try {
                     instructions.delete(inspectedInstructionHandle, inspectedInstructionHandle);
                 } catch (TargetLostException e) {
-                    //ignore
                 }
             }
             inspectedInstructionHandle = nextHandle;
@@ -216,5 +219,9 @@ public class ProblemSixSolver {
 
     private boolean isMethodCall(Instruction instruction) {
         return instruction instanceof InvokeInstruction;
+    }
+
+    private static JavaClass parseForClassName(String callerClassFile) throws IOException {
+        return new ClassParser(callerClassFile).parse();
     }
 }
