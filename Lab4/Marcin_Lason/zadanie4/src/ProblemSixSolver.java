@@ -11,11 +11,12 @@ import java.util.Map;
 
 public class ProblemSixSolver {
 
-    private final JavaClass classWithMethodsToInline;
-    private ConstantPoolGen modifiedClassConstPool;
+    private static final String NO_MATCHING_METHOD = "No matching method found!";
+    private final JavaClass sourceClass;
+    private ConstantPoolGen modifyingClassConstPool;
 
-    public ProblemSixSolver(JavaClass classWithMethodsToInline) {
-        this.classWithMethodsToInline = classWithMethodsToInline;
+    public ProblemSixSolver(JavaClass sourceClass) {
+        this.sourceClass = sourceClass;
     }
 
     public static void main(String[] args) throws IOException {
@@ -23,202 +24,190 @@ public class ProblemSixSolver {
             System.err.println("Invalid amount of arguments!");
             return;
         }
-
         String toModifyClassName = args[0] + ".class";
-        String inlineSourceClassName = args[1] + ".class";
 
         JavaClass toModifyClass = parseForClassName(toModifyClassName);
-        JavaClass inlineSourceClass = parseForClassName(inlineSourceClassName);
+        JavaClass inlineSourceClass = parseForClassName(args[1] + ".class");
 
         ProblemSixSolver solver = new ProblemSixSolver(inlineSourceClass);
-        JavaClass modifiedClass = solver.inlineMethodCalls(toModifyClass);
+        JavaClass modifiedClass = solver.modifyMethods(toModifyClass);
 
         modifiedClass.dump(toModifyClassName);
     }
 
-    private JavaClass inlineMethodCalls(JavaClass classToModify) {
+    private JavaClass modifyMethods(JavaClass classToModify) {
         ClassGen modifyingClass = new ClassGen(classToModify);
-        modifiedClassConstPool = modifyingClass.getConstantPool();
+        modifyingClassConstPool = modifyingClass.getConstantPool();
 
         for (Method method : modifyingClass.getMethods()) {
-            MethodGen modifiedMethod = new MethodGen(method, classToModify.getClassName(), modifiedClassConstPool);
-            inlineCalls(modifiedMethod);
+            MethodGen modifiedMethod = new MethodGen(method, classToModify.getClassName(), modifyingClassConstPool);
+            inlineUsages(modifiedMethod);
             modifyingClass.replaceMethod(method, modifiedMethod.getMethod());
         }
         return modifyingClass.getJavaClass();
     }
 
-    private void inlineCalls(MethodGen modifiedMethod) {
+    private void inlineUsages(MethodGen modifiedMethod) {
         InstructionList instructions = modifiedMethod.getInstructionList();
-        InstructionHandle inspectedInstructionHandle = instructions.getStart();
-        do {
-            InstructionHandle nextHandle = inspectedInstructionHandle.getNext();
-            Instruction instruction = inspectedInstructionHandle.getInstruction();
+        InstructionHandle instructionHandle = instructions.getStart();
 
-            if (isMethodCall(instruction) && shouldBeInlined(instruction)) {
-                InstructionList instructionsToPrepend = inlineMethod(modifiedMethod, (InvokeInstruction) instruction, nextHandle);
-                instructions.insert(inspectedInstructionHandle, instructionsToPrepend);
+        do {
+            InstructionHandle nextHandle = instructionHandle.getNext();
+            Instruction instruction = instructionHandle.getInstruction();
+
+            if (instruction instanceof InvokeInstruction && shouldBeInlined((InvokeInstruction) instruction)) {
+                InstructionList inlinedInstructions = inlineMethod(modifiedMethod, (InvokeInstruction) instruction,
+                        nextHandle);
+                instructions.insert(instructionHandle, inlinedInstructions);
+
                 try {
-                    instructions.delete(inspectedInstructionHandle, inspectedInstructionHandle);
+                    instructions.delete(instructionHandle, instructionHandle);
                 } catch (TargetLostException e) {
                 }
             }
-            inspectedInstructionHandle = nextHandle;
-        } while (inspectedInstructionHandle != null);
-
+            instructionHandle = nextHandle;
+        } while (instructionHandle != null);
         instructions.setPositions();
     }
 
-    private InstructionList inlineMethod(MethodGen callingMethod, InvokeInstruction instruction, InstructionHandle instructionAfterInlinedCall) {
+    private InstructionList inlineMethod(MethodGen modifyingMethod, InvokeInstruction instruction,
+                                         InstructionHandle nextInstruction) {
         INVOKEVIRTUAL methodInvocation = (INVOKEVIRTUAL) instruction;
+        Method matchingMethod = findMatchingMethod(methodInvocation);
+        int modifyingMethodLocalsOffset = modifyingMethod.getMaxLocals();
 
-        //find the method
+        updateCallersMaxStackAndLocals(modifyingMethod, matchingMethod);
 
-        Method matchingMethod = getCalledMethod(methodInvocation);
-        // change max locals and max stack of the calling method
-
-        int calledMethodLocalsOffset = callingMethod.getMaxLocals();
-        updateCallersMaxStackAndLocals(callingMethod, matchingMethod);
-
-        // find number of arguments (+ this)
-        // load vars from stack (note the types)
-
-        InstructionList stackLoadingInstructions = loadLocalsFromStack(matchingMethod, calledMethodLocalsOffset);
-
-        // add guard code
-
+        InstructionList stackInstructions = loadLocals(matchingMethod, modifyingMethodLocalsOffset);
         InstructionList checkInstructions = new InstructionList();
-        checkInstructions.append(new ALOAD(calledMethodLocalsOffset));
-        checkInstructions.append(new INVOKEVIRTUAL(modifiedClassConstPool.addMethodref("java/lang/Object", "getClass", "()Ljava/lang/Class;")));
-        checkInstructions.append(new PUSH(modifiedClassConstPool, classWithMethodsToInline.getClassName()));
-        checkInstructions.append(new INVOKESTATIC(modifiedClassConstPool.addMethodref("java/lang/Class", "forName", "(Ljava/lang/String;)Ljava/lang/Class;")));
-        BranchHandle checkJumpInstruction = checkInstructions.append(new IF_ACMPEQ(null));
-        checkInstructions.append(unloadLocalsToStack(matchingMethod, calledMethodLocalsOffset));
-        checkInstructions.append(methodInvocation);
-        checkInstructions.append(new GOTO(instructionAfterInlinedCall));
+        BranchHandle checkJumpInstruction = prepareCheckInstructions(checkInstructions, modifyingMethodLocalsOffset,
+                matchingMethod, methodInvocation, nextInstruction);
 
-        // renumber local vars accesses
-        // replace returns with gotos
+        Map<InstructionHandle, InstructionHandle> handleMapper = new HashMap<InstructionHandle, InstructionHandle>();
+        Map<BranchHandle, InstructionHandle> branchToHandle = new HashMap<BranchHandle, InstructionHandle>();
+        InstructionList sourceMethodCode = new InstructionList(matchingMethod.getCode().getCode());
 
-        Map<InstructionHandle, InstructionHandle> oldHandleToNewHandle = new HashMap<InstructionHandle, InstructionHandle>();
-        Map<BranchHandle, InstructionHandle> branchToNeededHandle = new HashMap<BranchHandle, InstructionHandle>();
-
-        InstructionList inlinedMethodCode = new InstructionList(matchingMethod.getCode().getCode());
-        inlinedMethodCode.replaceConstantPool(new ConstantPoolGen(matchingMethod.getConstantPool()), modifiedClassConstPool);
-
+        sourceMethodCode.replaceConstantPool(new ConstantPoolGen(matchingMethod.getConstantPool()),
+                modifyingClassConstPool);
         InstructionList translatedMethodInstructions = new InstructionList();
-        Iterator inlinedMethodCodeIterator = inlinedMethodCode.iterator();
+        Iterator sourceMethodCodeIterator = sourceMethodCode.iterator();
 
-        while (inlinedMethodCodeIterator.hasNext()) {
-            InstructionHandle instructionHandle = (InstructionHandle) inlinedMethodCodeIterator.next();
-            Instruction instructionFromInlinedMethod = instructionHandle.getInstruction();
+        while (sourceMethodCodeIterator.hasNext()) {
+
+            InstructionHandle handle = (InstructionHandle) sourceMethodCodeIterator.next();
+            Instruction sourceMethod = handle.getInstruction();
             InstructionHandle newHandle;
-            if (isReturnInstruction(instructionFromInlinedMethod)) {
-                newHandle = translatedMethodInstructions.append(new GOTO(instructionAfterInlinedCall));
-            } else if (instructionFromInlinedMethod instanceof LocalVariableInstruction) {
-                LocalVariableInstruction localVarInstr = (LocalVariableInstruction) instructionFromInlinedMethod;
-                localVarInstr.setIndex(localVarInstr.getIndex() + calledMethodLocalsOffset);
-                newHandle = translatedMethodInstructions.append(localVarInstr);
+
+            if (sourceMethod instanceof ReturnInstruction) {
+                newHandle = translatedMethodInstructions.append(new GOTO(nextInstruction));
+            } else if (sourceMethod instanceof LocalVariableInstruction) {
+                LocalVariableInstruction localVariableInstruction = (LocalVariableInstruction) sourceMethod;
+                localVariableInstruction.setIndex(localVariableInstruction.getIndex() + modifyingMethodLocalsOffset);
+                newHandle = translatedMethodInstructions.append(localVariableInstruction);
             } else {
-                if (instructionFromInlinedMethod instanceof BranchInstruction) {
-                    BranchInstruction branchInstruction = (BranchInstruction) instructionFromInlinedMethod;
-                    InstructionHandle neededTarget = branchInstruction.getTarget();
+                if (sourceMethod instanceof BranchInstruction) {
+
+                    BranchInstruction branchInstruction = (BranchInstruction) sourceMethod;
+                    InstructionHandle target = branchInstruction.getTarget();
                     newHandle = translatedMethodInstructions.append(branchInstruction);
-                    branchToNeededHandle.put((BranchHandle) newHandle, neededTarget);
+                    branchToHandle.put((BranchHandle) newHandle, target);
                 } else {
-                    newHandle = translatedMethodInstructions.append(instructionFromInlinedMethod);
+                    newHandle = translatedMethodInstructions.append(sourceMethod);
                 }
             }
-            oldHandleToNewHandle.put(instructionHandle, newHandle);
+            handleMapper.put(handle, newHandle);
         }
 
-        for (Map.Entry<BranchHandle, InstructionHandle> branchToTarget : branchToNeededHandle.entrySet()) {
-            InstructionHandle newTarget = oldHandleToNewHandle.get(branchToTarget.getValue());
+        for (Map.Entry<BranchHandle, InstructionHandle> branchToTarget : branchToHandle.entrySet()) {
+            InstructionHandle newTarget = handleMapper.get(branchToTarget.getValue());
             branchToTarget.getKey().setTarget(newTarget);
         }
 
         checkJumpInstruction.setTarget(translatedMethodInstructions.getInstructionHandles()[0]);
+        stackInstructions.append(checkInstructions);
+        stackInstructions.append(translatedMethodInstructions);
 
-        stackLoadingInstructions.append(checkInstructions);
-        stackLoadingInstructions.append(translatedMethodInstructions);
-
-        return stackLoadingInstructions;
+        return stackInstructions;
     }
 
-    private InstructionList unloadLocalsToStack(Method matchingMethod, int calledMethodLocalsOffset) {
-        InstructionList localsUnloadingInstructions = new InstructionList();
-        Type[] argumentTypes = matchingMethod.getArgumentTypes();
-        int nextLocalIndex = calledMethodLocalsOffset;
+    private BranchHandle prepareCheckInstructions(InstructionList instructions, int offset, Method matchingMethod,
+                                                  INVOKEVIRTUAL invocation, InstructionHandle nextInstruction) {
+        instructions.append(new ALOAD(offset));
+        instructions.append(new INVOKEVIRTUAL(modifyingClassConstPool
+                .addMethodref("java/lang/Object", "getClass", "()Ljava/lang/Class;")));
+        instructions.append(new PUSH(modifyingClassConstPool, sourceClass.getClassName()));
+        instructions.append(new INVOKESTATIC(modifyingClassConstPool
+                .addMethodref("java/lang/Class", "forName", "(Ljava/lang/String;)Ljava/lang/Class;")));
+        BranchHandle checkJumpInstruction = instructions.append(new IF_ACMPEQ(null));
+        instructions.append(unloadLocals(matchingMethod, offset));
+        instructions.append(invocation);
+        instructions.append(new GOTO(nextInstruction));
+        return checkJumpInstruction;
+    }
 
-        localsUnloadingInstructions.append(new ALOAD(nextLocalIndex++));
+    private InstructionList unloadLocals(Method matchingMethod, int offset) {
+        InstructionList instructions = new InstructionList();
+        Type[] argumentTypes = matchingMethod.getArgumentTypes();
+        int nextLocalIndex = offset;
+        instructions.append(new ALOAD(nextLocalIndex++));
+
         for (int i = 0; i < argumentTypes.length; i++) {
             Type argumentType = argumentTypes[i];
-
             if (argumentType instanceof BasicType) {
-                localsUnloadingInstructions.append(new ILOAD(nextLocalIndex++));
+                instructions.append(new ILOAD(nextLocalIndex++));
             } else {
-                localsUnloadingInstructions.append(new ALOAD(nextLocalIndex++));
+                instructions.append(new ALOAD(nextLocalIndex++));
             }
         }
-
-        return localsUnloadingInstructions;
+        return instructions;
     }
 
-    private InstructionList loadLocalsFromStack(Method matchingMethod, int calledMethodLocalsOffset) {
-        InstructionList stackLoadingInstructions = new InstructionList();
+    private InstructionList loadLocals(Method matchingMethod, int offset) {
+        InstructionList instructions = new InstructionList();
         Type[] argumentTypes = matchingMethod.getArgumentTypes();
-        int nextLocalIndex = calledMethodLocalsOffset + argumentTypes.length;
+        int argumentTypesLength = argumentTypes.length;
+        int nextLocalIndex = offset + argumentTypesLength;
 
-        for (int i = argumentTypes.length - 1; i >= 0; i--) {
+        for (int i = argumentTypesLength - 1; i >= 0; i--) {
             Type argumentType = argumentTypes[i];
+
             if (argumentType instanceof BasicType) {
-                stackLoadingInstructions.append(new ISTORE(nextLocalIndex--));
+                instructions.append(new ISTORE(nextLocalIndex--));
             } else {
-                stackLoadingInstructions.append(new ASTORE(nextLocalIndex--));
+                instructions.append(new ASTORE(nextLocalIndex--));
             }
         }
-        stackLoadingInstructions.append(new ASTORE(nextLocalIndex));
-
-        return stackLoadingInstructions;
+        instructions.append(new ASTORE(nextLocalIndex));
+        return instructions;
     }
 
-    private boolean isReturnInstruction(Instruction instruction) {
-        return instruction instanceof ReturnInstruction;
-    }
-
-    private void updateCallersMaxStackAndLocals(MethodGen callingMethod, Method matchingMethod) {
-        Code matchingMethodCode = matchingMethod.getCode();
-        callingMethod.setMaxStack(callingMethod.getMaxStack() + matchingMethodCode.getMaxStack());
-        callingMethod.setMaxLocals(callingMethod.getMaxLocals() + matchingMethodCode.getMaxLocals());
-    }
-
-    private Method getCalledMethod(INVOKEVIRTUAL methodInvocation) {
+    private Method findMatchingMethod(INVOKEVIRTUAL methodInvocation) {
         Method matchingMethod = null;
-        for (Method method : classWithMethodsToInline.getMethods()) {
-            boolean namesMatch = method.getName().equals(methodInvocation.getMethodName(modifiedClassConstPool));
-            boolean signatureMatches = method.getSignature().equals(methodInvocation.getSignature(modifiedClassConstPool));
 
-            if (namesMatch && signatureMatches) {
+        for (Method method : sourceClass.getMethods()) {
+            if (method.getName().equals(methodInvocation.getMethodName(modifyingClassConstPool))
+                    && method.getSignature().equals(methodInvocation.getSignature(modifyingClassConstPool))) {
                 matchingMethod = method;
             }
         }
-
         if (matchingMethod == null) {
-            throw new IllegalStateException("No matching method found");
+            throw new IllegalStateException(NO_MATCHING_METHOD);
         }
         return matchingMethod;
     }
 
-    private boolean shouldBeInlined(Instruction methodCall) {
-        InvokeInstruction instruction = (InvokeInstruction) methodCall;
+    private void updateCallersMaxStackAndLocals(MethodGen modifyingMethod, Method matchingMethod) {
+        Code matchingMethodCode = matchingMethod.getCode();
 
-        boolean isCallForInlinedClass = instruction.getClassName(modifiedClassConstPool).equals(classWithMethodsToInline.getClassName());
-        return isCallForInlinedClass && !(instruction instanceof INVOKESPECIAL || instruction instanceof INVOKESTATIC);
-
+        modifyingMethod.setMaxStack(modifyingMethod.getMaxStack() + matchingMethodCode.getMaxStack());
+        modifyingMethod.setMaxLocals(modifyingMethod.getMaxLocals() + matchingMethodCode.getMaxLocals());
     }
 
-    private boolean isMethodCall(Instruction instruction) {
-        return instruction instanceof InvokeInstruction;
+    private boolean shouldBeInlined(InvokeInstruction instruction) {
+        boolean isCallForInlinedClass = instruction.getClassName(modifyingClassConstPool)
+                .equals(sourceClass.getClassName());
+
+        return isCallForInlinedClass && !(instruction instanceof INVOKESPECIAL || instruction instanceof INVOKESTATIC);
     }
 
     private static JavaClass parseForClassName(String callerClassFile) throws IOException {
